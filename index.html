@@ -23,6 +23,13 @@
         import { createClient } from '@supabase/supabase-js';
         const { useState, useEffect, useMemo } = React;
 
+        // ============================================
+        // DEVELOPMENT CREDENTIALS (Set these to skip config screen)
+        // ============================================
+        const DEV_SUPABASE_URL = ''; // e.g., 'https://xxxxx.supabase.co'
+        const DEV_SUPABASE_KEY = ''; // Your anon/public key
+        // ============================================
+
         // Lucide React icons as inline SVG components
         const Plus = ({ size = 24 }) => (
             <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
