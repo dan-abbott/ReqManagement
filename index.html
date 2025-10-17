@@ -3,8 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Requirements Management System</title>
+    <title>Fresh Consulting - Requirements Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Customize Tailwind with Fresh green colors
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        fresh: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
 <body>
     <div id="root"></div>
@@ -29,8 +52,8 @@
         // ============================================
         // DEVELOPMENT CREDENTIALS (Set these to skip config screen)
         // ============================================
-        const DEV_SUPABASE_URL = 'https://ttkcqwsfdmlzxrndjrov.supabase.co'; // e.g., 'https://xxxxx.supabase.co'
-        const DEV_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0a2Nxd3NmZG1senhybmRqcm92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MDczMTksImV4cCI6MjA3NjI4MzMxOX0.aQEDyTLZQC8t0Z1pOWG_zNMGpDTKWu_YYmLmZq2HgXc'; // Your anon/public key
+        const DEV_SUPABASE_URL = 'https://ttkcqwsfdmlzxrndjrov.supabase.co';
+        const DEV_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0a2Nxd3NmZG1senhybmRqcm92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MDczMTksImV4cCI6MjA3NjI4MzMxOX0.aQEDyTLZQC8t0Z1pOWG_zNMGpDTKWu_YYmLmZq2HgXc';
         // ============================================
 
         // Icon components
@@ -81,6 +104,7 @@
           const [showRelationshipForm, setShowRelationshipForm] = useState(false);
           const [showReports, setShowReports] = useState(false);
           const [loading, setLoading] = useState(false);
+          const [showGraphView, setShowGraphView] = useState(false);
           
           const itemTypes = ['epic', 'requirement', 'test-case', 'defect'];
           const statuses = ['draft', 'in-review', 'approved', 'rejected'];
@@ -403,7 +427,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
 
             return h('div', { key: item.id },
               h('div', {
-                className: `flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`,
+                className: `flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-fresh-50 border-l-4 border-fresh-500' : ''}`,
                 style: { paddingLeft: `${level * 20 + 8}px` },
                 onClick: () => setSelectedItem(item)
               },
@@ -510,7 +534,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                 h('div', { className: 'flex gap-2 mt-6' },
                   h('button', {
                     onClick: () => item ? onSave(item.id, formData) : onSave(formData),
-                    className: 'flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center justify-center gap-2'
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
                   }, h(Save, { size: 16 }), ' Save'),
                   h('button', {
                     onClick: onCancel,
@@ -565,7 +589,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                   h('button', {
                     onClick: () => from && to && handleAddRelationship(from, to, type),
                     disabled: !from || !to,
-                    className: 'flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-300'
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:bg-gray-300'
                   }, 'Add Relationship'),
                   h('button', {
                     onClick: () => setShowRelationshipForm(false),
@@ -576,11 +600,154 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             );
           };
 
+          const RelationshipGraph = ({ item }) => {
+            if (!item) return null;
+
+            const outgoing = getItemRelationships(item.id).outgoing;
+            const incoming = getItemRelationships(item.id).incoming;
+            
+            // Build graph data
+            const graphItems = [{ ...item, level: 0, type: 'center' }];
+            
+            // Add incoming (items that point TO this item) - these go above
+            incoming.forEach((rel, idx) => {
+              const sourceItem = items.find(i => i.id === rel.from_id);
+              if (sourceItem) {
+                graphItems.push({ 
+                  ...sourceItem, 
+                  level: -1, 
+                  relType: rel.type,
+                  index: idx 
+                });
+              }
+            });
+            
+            // Add outgoing (items this item points TO) - these go below
+            outgoing.forEach((rel, idx) => {
+              const targetItem = items.find(i => i.id === rel.to_id);
+              if (targetItem) {
+                graphItems.push({ 
+                  ...targetItem, 
+                  level: 1, 
+                  relType: rel.type,
+                  index: idx 
+                });
+              }
+            });
+
+            const width = 800;
+            const height = 600;
+            const centerY = height / 2;
+            const centerX = width / 2;
+            const levelSpacing = 200;
+            const nodeWidth = 180;
+            const nodeHeight = 60;
+
+            return h('div', { className: 'bg-white p-4 rounded-lg border' },
+              h('svg', { width, height, className: 'mx-auto' },
+                // Draw connections
+                ...graphItems.filter(gi => gi.level !== 0).map(gi => {
+                  const itemsAtLevel = graphItems.filter(g => g.level === gi.level).length;
+                  const spacing = Math.min(250, width / (itemsAtLevel + 1));
+                  const x = centerX + (gi.index - (itemsAtLevel - 1) / 2) * spacing;
+                  const y = centerY + gi.level * levelSpacing;
+                  
+                  return h('g', { key: `conn-${gi.id}` },
+                    h('line', {
+                      x1: centerX,
+                      y1: centerY,
+                      x2: x,
+                      y2: y,
+                      stroke: gi.level < 0 ? '#16a34a' : '#3b82f6',
+                      strokeWidth: 2,
+                      markerEnd: 'url(#arrowhead)'
+                    }),
+                    h('text', {
+                      x: (centerX + x) / 2,
+                      y: (centerY + y) / 2 - 5,
+                      fontSize: 11,
+                      fill: '#666',
+                      textAnchor: 'middle'
+                    }, gi.relType)
+                  );
+                }),
+                
+                // Arrow marker definition
+                h('defs', {},
+                  h('marker', {
+                    id: 'arrowhead',
+                    markerWidth: 10,
+                    markerHeight: 7,
+                    refX: 9,
+                    refY: 3.5,
+                    orient: 'auto'
+                  },
+                    h('polygon', {
+                      points: '0 0, 10 3.5, 0 7',
+                      fill: '#666'
+                    })
+                  )
+                ),
+                
+                // Draw nodes
+                ...graphItems.map(gi => {
+                  const itemsAtLevel = graphItems.filter(g => g.level === gi.level).length;
+                  const spacing = Math.min(250, width / (itemsAtLevel + 1));
+                  const x = gi.level === 0 ? centerX : centerX + (gi.index - (itemsAtLevel - 1) / 2) * spacing;
+                  const y = centerY + gi.level * levelSpacing;
+                  
+                  const bgColor = gi.level === 0 ? '#22c55e' :
+                                  gi.type === 'epic' ? '#a855f7' :
+                                  gi.type === 'requirement' ? '#3b82f6' :
+                                  gi.type === 'test-case' ? '#10b981' : '#ef4444';
+                  
+                  return h('g', { key: `node-${gi.id}` },
+                    h('rect', {
+                      x: x - nodeWidth / 2,
+                      y: y - nodeHeight / 2,
+                      width: nodeWidth,
+                      height: nodeHeight,
+                      fill: bgColor,
+                      rx: 8,
+                      stroke: gi.level === 0 ? '#15803d' : '#fff',
+                      strokeWidth: gi.level === 0 ? 3 : 1
+                    }),
+                    h('text', {
+                      x,
+                      y: y - 8,
+                      fontSize: 11,
+                      fill: 'white',
+                      textAnchor: 'middle',
+                      fontWeight: gi.level === 0 ? 'bold' : 'normal'
+                    }, gi.type),
+                    h('text', {
+                      x,
+                      y: y + 8,
+                      fontSize: 12,
+                      fill: 'white',
+                      textAnchor: 'middle',
+                      fontWeight: gi.level === 0 ? 'bold' : 'normal'
+                    }, gi.title.length > 20 ? gi.title.substring(0, 20) + '...' : gi.title)
+                  );
+                })
+              ),
+              h('div', { className: 'mt-4 text-sm text-gray-600 text-center' },
+                h('div', {}, '↑ Items that link TO this requirement'),
+                h('div', { className: 'mt-1' }, '↓ Items this requirement links TO')
+              )
+            );
+          };
+
           const rootItems = items.filter(item => !item.parent_id);
 
           if (!isConfigured) {
             return h('div', { className: 'h-screen flex items-center justify-center bg-gray-50' },
               h('div', { className: 'bg-white p-8 rounded-lg shadow-lg max-w-2xl w-full' },
+                h('img', { 
+                  src: './Fresh logo - Suisse.png', 
+                  alt: 'Fresh Consulting',
+                  className: 'h-12 mx-auto mb-6'
+                }),
                 h('h1', { className: 'text-3xl font-bold mb-6 text-center' }, 'Requirements Management System'),
                 h('p', { className: 'text-gray-600 mb-6' }, 'Connect to your Supabase database to get started. You\'ll need your project URL and anon key.'),
                 h('div', { className: 'space-y-4 mb-6' },
@@ -609,15 +776,15 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                   h('button', {
                     onClick: initializeSupabase,
                     disabled: !supabaseUrl || !supabaseKey,
-                    className: 'w-full bg-blue-600 text-white px-4 py-3 rounded hover:bg-blue-700 disabled:bg-gray-300 font-semibold'
+                    className: 'w-full bg-fresh-600 text-white px-4 py-3 rounded hover:bg-fresh-700 disabled:bg-gray-300 font-semibold'
                   }, 'Connect to Supabase'),
                   h('button', {
                     onClick: setupDatabase,
                     className: 'w-full bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300'
                   }, 'Show Database Setup Instructions')
                 ),
-                h('div', { className: 'mt-6 p-4 bg-blue-50 rounded' },
-                  h('p', { className: 'text-sm text-blue-900' },
+                h('div', { className: 'mt-6 p-4 bg-fresh-50 rounded' },
+                  h('p', { className: 'text-sm text-fresh-900' },
                     h('strong', {}, 'First time setup: '),
                     'Click "Show Database Setup Instructions" to get the SQL commands you need to run in your Supabase SQL editor to create the required tables.'
                   )
@@ -627,22 +794,29 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
           }
 
           return h('div', { className: 'h-screen flex flex-col bg-gray-50' },
-            h('header', { className: 'bg-blue-600 text-white p-4 shadow flex justify-between items-center' },
-              h('h1', { className: 'text-2xl font-bold' }, 'Requirements Management System'),
+            h('header', { className: 'bg-fresh-600 text-white p-4 shadow flex justify-between items-center' },
+              h('div', { className: 'flex items-center gap-4' },
+                h('img', { 
+                  src: './Fresh logo - Suisse.png', 
+                  alt: 'Fresh Consulting',
+                  className: 'h-8'
+                }),
+                h('h1', { className: 'text-2xl font-bold' }, 'Requirements Management')
+              ),
               h('div', { className: 'flex gap-2' },
                 h('button', {
                   onClick: () => setShowReports(!showReports),
-                  className: `px-4 py-2 rounded flex items-center gap-2 ${showReports ? 'bg-blue-700' : 'bg-blue-500 hover:bg-blue-700'}`
+                  className: `px-4 py-2 rounded flex items-center gap-2 ${showReports ? 'bg-fresh-700' : 'bg-fresh-500 hover:bg-fresh-700'}`
                 }, h(TrendingUp, { size: 18 }), showReports ? ' Hide Reports' : ' Show Reports'),
                 h('button', {
                   onClick: () => loadData(supabase),
-                  className: 'px-4 py-2 bg-blue-500 rounded hover:bg-blue-700 flex items-center gap-2'
+                  className: 'px-4 py-2 bg-fresh-500 rounded hover:bg-fresh-700 flex items-center gap-2'
                 }, '🔄 Refresh')
               )
             ),
             loading ? h('div', { className: 'flex-1 flex items-center justify-center' },
               h('div', { className: 'text-center' },
-                h('div', { className: 'animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4' }),
+                h('div', { className: 'animate-spin rounded-full h-12 w-12 border-b-2 border-fresh-600 mx-auto mb-4' }),
                 h('p', { className: 'text-gray-600' }, 'Loading data...')
               )
             ) : showReports ? h('div', { className: 'p-6 overflow-y-auto h-full bg-gray-50' },
@@ -655,7 +829,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                         h('p', { className: 'text-sm text-gray-500' }, 'Total Items'),
                         h('p', { className: 'text-3xl font-bold' }, reportData.totalItems)
                       ),
-                      h(BarChart3, { size: 32, className: 'text-blue-500' })
+                      h(BarChart3, { size: 32, className: 'text-fresh-500' })
                     )
                   ),
                   h('div', { className: 'bg-white p-4 rounded-lg shadow' },
@@ -664,7 +838,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                         h('p', { className: 'text-sm text-gray-500' }, 'Test Coverage'),
                         h('p', { className: 'text-3xl font-bold' }, reportData.testCoverage + '%')
                       ),
-                      h(PieChart, { size: 32, className: 'text-green-500' })
+                      h(PieChart, { size: 32, className: 'text-fresh-500' })
                     )
                   ),
                   h('div', { className: 'bg-white p-4 rounded-lg shadow' },
@@ -673,7 +847,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                         h('p', { className: 'text-sm text-gray-500' }, 'Traceability'),
                         h('p', { className: 'text-3xl font-bold' }, reportData.traceabilityScore + '%')
                       ),
-                      h(GitBranch, { size: 32, className: 'text-purple-500' })
+                      h(GitBranch, { size: 32, className: 'text-fresh-500' })
                     )
                   ),
                   h('div', { className: 'bg-white p-4 rounded-lg shadow' },
@@ -682,7 +856,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                         h('p', { className: 'text-sm text-gray-500' }, 'Relationships'),
                         h('p', { className: 'text-3xl font-bold' }, reportData.totalRelationships)
                       ),
-                      h(Link2, { size: 32, className: 'text-orange-500' })
+                      h(Link2, { size: 32, className: 'text-fresh-500' })
                     )
                   )
                 ),
@@ -790,7 +964,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                           ),
                           h('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
                             h('div', {
-                              className: 'bg-blue-500 h-2 rounded-full',
+                              className: 'bg-fresh-500 h-2 rounded-full',
                               style: { width: `${(count / reportData.totalItems * 100)}%` }
                             })
                           )
@@ -805,11 +979,11 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                   h('div', { className: 'flex gap-2' },
                     h('button', {
                       onClick: () => setShowNewItemForm(true),
-                      className: 'flex-1 bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 flex items-center justify-center gap-2'
+                      className: 'flex-1 bg-fresh-600 text-white px-3 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
                     }, h(Plus, { size: 16 }), ' New Item'),
                     h('button', {
                       onClick: () => setShowRelationshipForm(true),
-                      className: 'flex-1 bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2'
+                      className: 'flex-1 bg-fresh-600 text-white px-3 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
                     }, h(Link2, { size: 16 }), ' Link Items')
                   ),
                   h('div', { className: 'flex gap-2' },
@@ -900,31 +1074,45 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                     h('p', { className: 'text-gray-700' }, selectedItem.description)
                   ),
                   h('div', { className: 'mb-6' },
-                    h('h3', { className: 'font-semibold mb-2 flex items-center gap-2' },
-                      h(GitBranch, { size: 18 }), ' Relationships'
+                    h('div', { className: 'flex items-center justify-between mb-2' },
+                      h('h3', { className: 'font-semibold flex items-center gap-2' },
+                        h(GitBranch, { size: 18 }), ' Relationships'
+                      ),
+                      h('div', { className: 'flex gap-2' },
+                        h('button', {
+                          onClick: () => setShowGraphView(false),
+                          className: `px-3 py-1 text-sm rounded ${!showGraphView ? 'bg-fresh-600 text-white' : 'bg-gray-200'}`
+                        }, 'List'),
+                        h('button', {
+                          onClick: () => setShowGraphView(true),
+                          className: `px-3 py-1 text-sm rounded ${showGraphView ? 'bg-fresh-600 text-white' : 'bg-gray-200'}`
+                        }, 'Graph')
+                      )
                     ),
-                    h('div', { className: 'space-y-2' },
-                      ...getItemRelationships(selectedItem.id).outgoing.map((rel, idx) => {
-                        const target = items.find(i => i.id === rel.to_id);
-                        return target ? h('div', { key: idx, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded' },
-                          h('span', { className: 'text-sm text-gray-600' }, rel.type),
-                          h(ChevronRight, { size: 16, className: 'text-gray-400' }),
-                          h('span', { className: 'text-sm font-medium' }, target.title)
-                        ) : null;
-                      }),
-                      ...getItemRelationships(selectedItem.id).incoming.map((rel, idx) => {
-                        const source = items.find(i => i.id === rel.from_id);
-                        return source ? h('div', { key: `in-${idx}`, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded' },
-                          h('span', { className: 'text-sm font-medium' }, source.title),
-                          h(ChevronRight, { size: 16, className: 'text-gray-400' }),
-                          h('span', { className: 'text-sm text-gray-600' }, rel.type),
-                          h('span', { className: 'text-sm text-gray-600' }, ' this item')
-                        ) : null;
-                      }),
-                      getItemRelationships(selectedItem.id).outgoing.length === 0 && 
-                      getItemRelationships(selectedItem.id).incoming.length === 0 &&
-                        h('p', { className: 'text-gray-500 text-sm' }, 'No relationships yet')
-                    )
+                    showGraphView ? 
+                      h(RelationshipGraph, { item: selectedItem }) :
+                      h('div', { className: 'space-y-2' },
+                        ...getItemRelationships(selectedItem.id).outgoing.map((rel, idx) => {
+                          const target = items.find(i => i.id === rel.to_id);
+                          return target ? h('div', { key: idx, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded' },
+                            h('span', { className: 'text-sm text-gray-600' }, rel.type),
+                            h(ChevronRight, { size: 16, className: 'text-gray-400' }),
+                            h('span', { className: 'text-sm font-medium' }, target.title)
+                          ) : null;
+                        }),
+                        ...getItemRelationships(selectedItem.id).incoming.map((rel, idx) => {
+                          const source = items.find(i => i.id === rel.from_id);
+                          return source ? h('div', { key: `in-${idx}`, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded' },
+                            h('span', { className: 'text-sm font-medium' }, source.title),
+                            h(ChevronRight, { size: 16, className: 'text-gray-400' }),
+                            h('span', { className: 'text-sm text-gray-600' }, rel.type),
+                            h('span', { className: 'text-sm text-gray-600' }, ' this item')
+                          ) : null;
+                        }),
+                        getItemRelationships(selectedItem.id).outgoing.length === 0 && 
+                        getItemRelationships(selectedItem.id).incoming.length === 0 &&
+                          h('p', { className: 'text-gray-500 text-sm' }, 'No relationships yet')
+                      )
                   ),
                   h('div', {},
                     h('h3', { className: 'font-semibold mb-2 flex items-center gap-2' },
@@ -953,7 +1141,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       }),
                       h('button', {
                         onClick: () => handleAddComment(selectedItem.id),
-                        className: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700'
+                        className: 'bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700'
                       }, 'Post')
                     )
                   )
