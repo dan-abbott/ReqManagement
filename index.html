@@ -94,6 +94,11 @@
           const [items, setItems] = useState([]);
           const [relationships, setRelationships] = useState([]);
           const [comments, setComments] = useState([]);
+          const [projects, setProjects] = useState([]);
+          const [selectedProject, setSelectedProject] = useState(null);
+          const [showProjectForm, setShowProjectForm] = useState(false);
+          const [projectSearchTerm, setProjectSearchTerm] = useState('');
+          const [showProjectDropdown, setShowProjectDropdown] = useState(false);
           const [selectedItem, setSelectedItem] = useState(null);
           const [editingItem, setEditingItem] = useState(null);
           const [showNewItemForm, setShowNewItemForm] = useState(false);
@@ -107,7 +112,12 @@
           const [showGraphView, setShowGraphView] = useState(false);
           
           const itemTypes = ['epic', 'requirement', 'test-case', 'defect'];
-          const statuses = ['draft', 'in-review', 'approved', 'rejected'];
+          const statuses = {
+            epic: ['draft', 'in-review', 'approved', 'rejected'],
+            requirement: ['draft', 'in-review', 'approved', 'rejected'],
+            'test-case': ['not-tested', 'pass', 'fail'],
+            defect: ['not-started', 'in-process', 'resolved', 'backlog']
+          };
           const priorities = ['low', 'medium', 'high', 'critical'];
           const relationshipTypes = ['tests', 'depends-on', 'derives-from', 'relates-to'];
 
@@ -129,15 +139,23 @@
           const loadData = async (client) => {
             setLoading(true);
             try {
-              const [itemsRes, relationshipsRes, commentsRes] = await Promise.all([
+              const [itemsRes, relationshipsRes, commentsRes, projectsRes] = await Promise.all([
                 client.from('items').select('*').order('id'),
                 client.from('relationships').select('*'),
-                client.from('comments').select('*').order('timestamp', { ascending: false })
+                client.from('comments').select('*').order('timestamp', { ascending: false }),
+                client.from('projects').select('*').order('name')
               ]);
               
               if (itemsRes.data) setItems(itemsRes.data);
               if (relationshipsRes.data) setRelationships(relationshipsRes.data);
               if (commentsRes.data) setComments(commentsRes.data);
+              if (projectsRes.data) {
+                setProjects(projectsRes.data);
+                // Auto-select first project if none selected
+                if (!selectedProject && projectsRes.data.length > 0) {
+                  setSelectedProject(projectsRes.data[0]);
+                }
+              }
             } catch (error) {
               console.error('Error loading data:', error);
               alert('Error loading data. Please check your Supabase credentials and table setup.');
@@ -148,13 +166,25 @@
           const setupDatabase = async () => {
             alert(`Please run these SQL commands in your Supabase SQL editor:
 
+CREATE TABLE projects (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  pid TEXT NOT NULL UNIQUE,
+  project_manager TEXT,
+  lead_engineer TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE items (
   id BIGSERIAL PRIMARY KEY,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
+  rationale TEXT,
+  test_method TEXT,
   status TEXT NOT NULL,
-  priority TEXT NOT NULL,
+  priority TEXT,
   owner TEXT,
   version INTEGER DEFAULT 1,
   parent_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
@@ -179,10 +209,12 @@ CREATE TABLE comments (
   timestamp TIMESTAMP DEFAULT NOW()
 );
 
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE relationships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 
+CREATE POLICY "Enable all operations" ON projects FOR ALL USING (true);
 CREATE POLICY "Enable all operations" ON items FOR ALL USING (true);
 CREATE POLICY "Enable all operations" ON relationships FOR ALL USING (true);
 CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
@@ -345,6 +377,21 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             }
           };
 
+          const handleDeleteRelationship = async (relationshipId) => {
+            if (!supabase) return;
+            
+            try {
+              const { error } = await supabase.from('relationships').delete().eq('id', relationshipId);
+              
+              if (error) throw error;
+              
+              setRelationships(prev => prev.filter(r => r.id !== relationshipId));
+            } catch (error) {
+              console.error('Error deleting relationship:', error);
+              alert('Error deleting relationship: ' + error.message);
+            }
+          };
+
           const getItemRelationships = (itemId) => {
             return {
               outgoing: relationships.filter(r => r.from_id === itemId),
@@ -408,15 +455,149 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             };
           }, [items, relationships, comments]);
 
+          const ProjectForm = ({ onSave, onCancel }) => {
+            const [formData, setFormData] = useState({
+              name: '',
+              pid: '',
+              project_manager: '',
+              lead_engineer: ''
+            });
+
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
+                h('h3', { className: 'text-xl font-bold mb-4' }, 'New Project'),
+                h('div', { className: 'space-y-4' },
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Project Name'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.name,
+                      onChange: (e) => setFormData({ ...formData, name: e.target.value }),
+                      placeholder: 'e.g., Mobile App v2.0',
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Project ID (PID)'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.pid,
+                      onChange: (e) => setFormData({ ...formData, pid: e.target.value }),
+                      placeholder: 'e.g., MOB-2',
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Project Manager'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.project_manager,
+                      onChange: (e) => setFormData({ ...formData, project_manager: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Lead Engineer'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.lead_engineer,
+                      onChange: (e) => setFormData({ ...formData, lead_engineer: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  )
+                ),
+                h('div', { className: 'flex gap-2 mt-6' },
+                  h('button', {
+                    onClick: () => onSave(formData),
+                    disabled: !formData.name || !formData.pid,
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:bg-gray-300'
+                  }, 'Create Project'),
+                  h('button', {
+                    onClick: onCancel,
+                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
+                  }, 'Cancel')
+                )
+              )
+            );
+          };
+
+          const ProjectSelector = () => {
+            const filteredProjects = projects.filter(p => 
+              projectSearchTerm === '' || 
+              p.name.toLowerCase().includes(projectSearchTerm.toLowerCase()) ||
+              p.pid.toLowerCase().includes(projectSearchTerm.toLowerCase())
+            );
+
+            return h('div', { className: 'relative' },
+              h('button', {
+                onClick: () => setShowProjectDropdown(!showProjectDropdown),
+                className: 'bg-fresh-700 text-white px-4 py-2 rounded hover:bg-fresh-800 flex items-center gap-2 min-w-[200px]'
+              },
+                h('span', { className: 'flex-1 text-left truncate' }, 
+                  selectedProject ? `${selectedProject.pid} - ${selectedProject.name}` : 'Select Project'
+                ),
+                h(ChevronDown, { size: 16 })
+              ),
+              showProjectDropdown && h('div', {
+                className: 'absolute top-full mt-1 left-0 bg-white border rounded-lg shadow-lg w-80 max-h-96 overflow-hidden z-50'
+              },
+                h('div', { className: 'p-2 border-b sticky top-0 bg-white' },
+                  h('input', {
+                    type: 'text',
+                    placeholder: 'Search projects...',
+                    value: projectSearchTerm,
+                    onChange: (e) => setProjectSearchTerm(e.target.value),
+                    className: 'w-full border rounded px-3 py-2',
+                    autoFocus: true
+                  })
+                ),
+                h('div', { className: 'max-h-64 overflow-y-auto' },
+                  ...filteredProjects.map(project =>
+                    h('button', {
+                      key: project.id,
+                      onClick: () => {
+                        setSelectedProject(project);
+                        setShowProjectDropdown(false);
+                        setProjectSearchTerm('');
+                      },
+                      className: `w-full text-left px-4 py-3 hover:bg-gray-50 border-b ${selectedProject?.id === project.id ? 'bg-fresh-50' : ''}`
+                    },
+                      h('div', { className: 'font-medium' }, project.name),
+                      h('div', { className: 'text-sm text-gray-500' }, `PID: ${project.pid}`),
+                      project.project_manager && h('div', { className: 'text-xs text-gray-400 mt-1' }, 
+                        `PM: ${project.project_manager}${project.lead_engineer ? ` | LE: ${project.lead_engineer}` : ''}`
+                      )
+                    )
+                  ),
+                  filteredProjects.length === 0 && h('div', { className: 'px-4 py-3 text-gray-500 text-sm' }, 
+                    'No projects found'
+                  )
+                ),
+                h('button', {
+                  onClick: () => {
+                    setShowProjectForm(true);
+                    setShowProjectDropdown(false);
+                    setProjectSearchTerm('');
+                  },
+                  className: 'w-full px-4 py-3 bg-fresh-50 text-fresh-700 hover:bg-fresh-100 font-medium border-t flex items-center justify-center gap-2'
+                },
+                  h(Plus, { size: 16 }),
+                  ' New Project'
+                )
+              )
+            );
+          };
+
           const filteredItems = useMemo(() => {
             return items.filter(item => {
+              const matchesProject = !selectedProject || item.project_id === selectedProject.id;
               const matchesType = filterType === 'all' || item.type === filterType;
               const matchesSearch = searchTerm === '' || 
                 item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
-              return matchesType && matchesSearch;
+              return matchesProject && matchesType && matchesSearch;
             });
-          }, [items, filterType, searchTerm]);
+          }, [items, selectedProject, filterType, searchTerm]);
 
           const renderTreeItem = (item, level = 0) => {
             const hasChildren = item.children && item.children.length > 0;
@@ -468,11 +649,40 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               type: 'requirement',
               title: '',
               description: '',
+              rationale: '',
+              test_method: '',
               status: 'draft',
               priority: 'medium',
               owner: '',
               parentId: selectedItem?.id || null,
             });
+
+            const [selectedRelationships, setSelectedRelationships] = useState([]);
+
+            const getFieldsForType = (type) => {
+              switch(type) {
+                case 'epic':
+                  return ['title', 'description'];
+                case 'requirement':
+                  return ['title', 'description', 'rationale', 'status', 'priority', 'owner'];
+                case 'test-case':
+                  return ['title', 'description', 'test_method', 'status', 'owner'];
+                case 'defect':
+                  return ['title', 'description', 'status', 'priority', 'owner'];
+                default:
+                  return ['title', 'description'];
+              }
+            };
+
+            const fields = getFieldsForType(formData.type);
+            const availableStatuses = statuses[formData.type] || statuses.requirement;
+
+            // Update status when type changes
+            useEffect(() => {
+              if (!availableStatuses.includes(formData.status)) {
+                setFormData(prev => ({ ...prev, status: availableStatuses[0] }));
+              }
+            }, [formData.type]);
 
             return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
               h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto' },
@@ -483,10 +693,11 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                     h('select', {
                       value: formData.type,
                       onChange: (e) => setFormData({ ...formData, type: e.target.value }),
-                      className: 'w-full border rounded px-3 py-2'
+                      className: 'w-full border rounded px-3 py-2',
+                      disabled: !!item
                     }, itemTypes.map(type => h('option', { key: type, value: type }, type)))
                   ),
-                  h('div', {},
+                  fields.includes('title') && h('div', {},
                     h('label', { className: 'block text-sm font-medium mb-1' }, 'Title'),
                     h('input', {
                       type: 'text',
@@ -495,7 +706,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       className: 'w-full border rounded px-3 py-2'
                     })
                   ),
-                  h('div', {},
+                  fields.includes('description') && h('div', {},
                     h('label', { className: 'block text-sm font-medium mb-1' }, 'Description'),
                     h('textarea', {
                       value: formData.description,
@@ -503,16 +714,32 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       className: 'w-full border rounded px-3 py-2 h-24'
                     })
                   ),
+                  fields.includes('rationale') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Rationale'),
+                    h('textarea', {
+                      value: formData.rationale || '',
+                      onChange: (e) => setFormData({ ...formData, rationale: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2 h-20'
+                    })
+                  ),
+                  fields.includes('test_method') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Test Method'),
+                    h('textarea', {
+                      value: formData.test_method || '',
+                      onChange: (e) => setFormData({ ...formData, test_method: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2 h-20'
+                    })
+                  ),
                   h('div', { className: 'grid grid-cols-2 gap-4' },
-                    h('div', {},
+                    fields.includes('status') && h('div', {},
                       h('label', { className: 'block text-sm font-medium mb-1' }, 'Status'),
                       h('select', {
                         value: formData.status,
                         onChange: (e) => setFormData({ ...formData, status: e.target.value }),
                         className: 'w-full border rounded px-3 py-2'
-                      }, statuses.map(status => h('option', { key: status, value: status }, status)))
+                      }, availableStatuses.map(status => h('option', { key: status, value: status }, status)))
                     ),
-                    h('div', {},
+                    fields.includes('priority') && h('div', {},
                       h('label', { className: 'block text-sm font-medium mb-1' }, 'Priority'),
                       h('select', {
                         value: formData.priority,
@@ -521,7 +748,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       }, priorities.map(priority => h('option', { key: priority, value: priority }, priority)))
                     )
                   ),
-                  h('div', {},
+                  fields.includes('owner') && h('div', {},
                     h('label', { className: 'block text-sm font-medium mb-1' }, 'Owner'),
                     h('input', {
                       type: 'text',
@@ -529,11 +756,59 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       onChange: (e) => setFormData({ ...formData, owner: e.target.value }),
                       className: 'w-full border rounded px-3 py-2'
                     })
+                  ),
+                  !item && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Add Relationships (Optional)'),
+                    h('div', { className: 'border rounded p-3 space-y-2' },
+                      ...selectedRelationships.map((rel, idx) =>
+                        h('div', { key: idx, className: 'flex gap-2 items-center bg-gray-50 p-2 rounded' },
+                          h('select', {
+                            value: rel.type,
+                            onChange: (e) => {
+                              const updated = [...selectedRelationships];
+                              updated[idx].type = e.target.value;
+                              setSelectedRelationships(updated);
+                            },
+                            className: 'border rounded px-2 py-1 text-sm'
+                          }, relationshipTypes.map(rt => h('option', { key: rt, value: rt }, rt))),
+                          h('select', {
+                            value: rel.to,
+                            onChange: (e) => {
+                              const updated = [...selectedRelationships];
+                              updated[idx].to = Number(e.target.value);
+                              setSelectedRelationships(updated);
+                            },
+                            className: 'flex-1 border rounded px-2 py-1 text-sm'
+                          },
+                            h('option', { value: '' }, 'Select item...'),
+                            items.map(i => h('option', { key: i.id, value: i.id }, `[${i.type}] ${i.title}`))
+                          ),
+                          h('button', {
+                            onClick: () => setSelectedRelationships(selectedRelationships.filter((_, i) => i !== idx)),
+                            className: 'text-red-600 hover:bg-red-50 p-1 rounded'
+                          }, h(X, { size: 16 }))
+                        )
+                      ),
+                      h('button', {
+                        onClick: () => setSelectedRelationships([...selectedRelationships, { type: 'relates-to', to: '' }]),
+                        className: 'text-fresh-600 hover:bg-fresh-50 px-3 py-1 rounded text-sm flex items-center gap-1'
+                      }, h(Plus, { size: 14 }), ' Add Relationship')
+                    )
                   )
                 ),
                 h('div', { className: 'flex gap-2 mt-6' },
                   h('button', {
-                    onClick: () => item ? onSave(item.id, formData) : onSave(formData),
+                    onClick: async () => {
+                      if (item) {
+                        onSave(item.id, formData);
+                      } else {
+                        await onSave(formData);
+                        // Add relationships after item is created
+                        if (selectedRelationships.length > 0) {
+                          // We'd need the new item ID here - will handle in onSave
+                        }
+                      }
+                    },
                     className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
                   }, h(Save, { size: 16 }), ' Save'),
                   h('button', {
@@ -606,8 +881,8 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             const outgoing = getItemRelationships(item.id).outgoing;
             const incoming = getItemRelationships(item.id).incoming;
             
-            // Build graph data
-            const graphItems = [{ ...item, level: 0, type: 'center' }];
+            // Build graph data - don't override the type property
+            const graphItems = [{ ...item, level: 0, isCenter: true }];
             
             // Add incoming (items that point TO this item) - these go above
             incoming.forEach((rel, idx) => {
@@ -696,7 +971,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                   const x = gi.level === 0 ? centerX : centerX + (gi.index - (itemsAtLevel - 1) / 2) * spacing;
                   const y = centerY + gi.level * levelSpacing;
                   
-                  const bgColor = gi.level === 0 ? '#22c55e' :
+                  const bgColor = gi.isCenter ? '#22c55e' :
                                   gi.type === 'epic' ? '#a855f7' :
                                   gi.type === 'requirement' ? '#3b82f6' :
                                   gi.type === 'test-case' ? '#10b981' : '#ef4444';
@@ -709,8 +984,8 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       height: nodeHeight,
                       fill: bgColor,
                       rx: 8,
-                      stroke: gi.level === 0 ? '#15803d' : '#fff',
-                      strokeWidth: gi.level === 0 ? 3 : 1
+                      stroke: gi.isCenter ? '#15803d' : '#fff',
+                      strokeWidth: gi.isCenter ? 3 : 1
                     }),
                     h('text', {
                       x,
@@ -718,7 +993,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       fontSize: 11,
                       fill: 'white',
                       textAnchor: 'middle',
-                      fontWeight: gi.level === 0 ? 'bold' : 'normal'
+                      fontWeight: gi.isCenter ? 'bold' : 'normal'
                     }, gi.type),
                     h('text', {
                       x,
@@ -726,7 +1001,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       fontSize: 12,
                       fill: 'white',
                       textAnchor: 'middle',
-                      fontWeight: gi.level === 0 ? 'bold' : 'normal'
+                      fontWeight: gi.isCenter ? 'bold' : 'normal'
                     }, gi.title.length > 20 ? gi.title.substring(0, 20) + '...' : gi.title)
                   );
                 })
@@ -801,7 +1076,8 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                   alt: 'Fresh Consulting',
                   className: 'h-8'
                 }),
-                h('h1', { className: 'text-2xl font-bold' }, 'Requirements Management')
+                h('h1', { className: 'text-2xl font-bold' }, 'Requirements Management'),
+                h(ProjectSelector)
               ),
               h('div', { className: 'flex gap-2' },
                 h('button', {
@@ -818,6 +1094,16 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               h('div', { className: 'text-center' },
                 h('div', { className: 'animate-spin rounded-full h-12 w-12 border-b-2 border-fresh-600 mx-auto mb-4' }),
                 h('p', { className: 'text-gray-600' }, 'Loading data...')
+              )
+            ) : !selectedProject ? h('div', { className: 'flex-1 flex items-center justify-center' },
+              h('div', { className: 'text-center' },
+                h(Filter, { size: 64, className: 'mx-auto mb-4 text-gray-300' }),
+                h('h2', { className: 'text-2xl font-bold text-gray-700 mb-2' }, 'No Project Selected'),
+                h('p', { className: 'text-gray-500 mb-4' }, projects.length === 0 ? 'Create your first project to get started' : 'Select a project from the dropdown above'),
+                projects.length === 0 && h('button', {
+                  onClick: () => setShowProjectForm(true),
+                  className: 'bg-fresh-600 text-white px-6 py-3 rounded-lg hover:bg-fresh-700 flex items-center gap-2 mx-auto'
+                }, h(Plus, { size: 20 }), ' Create First Project')
               )
             ) : showReports ? h('div', { className: 'p-6 overflow-y-auto h-full bg-gray-50' },
               h('div', { className: 'max-w-7xl mx-auto' },
@@ -1073,6 +1359,16 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                     h('h3', { className: 'font-semibold mb-2' }, 'Description'),
                     h('p', { className: 'text-gray-700' }, selectedItem.description)
                   ),
+
+                  selectedItem.rationale && h('div', { className: 'mb-6' },
+                    h('h3', { className: 'font-semibold mb-2' }, 'Rationale'),
+                    h('p', { className: 'text-gray-700' }, selectedItem.rationale)
+                  ),
+
+                  selectedItem.test_method && h('div', { className: 'mb-6' },
+                    h('h3', { className: 'font-semibold mb-2' }, 'Test Method'),
+                    h('p', { className: 'text-gray-700' }, selectedItem.test_method)
+                  ),
                   h('div', { className: 'mb-6' },
                     h('div', { className: 'flex items-center justify-between mb-2' },
                       h('h3', { className: 'font-semibold flex items-center gap-2' },
@@ -1094,19 +1390,27 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       h('div', { className: 'space-y-2' },
                         ...getItemRelationships(selectedItem.id).outgoing.map((rel, idx) => {
                           const target = items.find(i => i.id === rel.to_id);
-                          return target ? h('div', { key: idx, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded' },
+                          return target ? h('div', { key: idx, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded group' },
                             h('span', { className: 'text-sm text-gray-600' }, rel.type),
                             h(ChevronRight, { size: 16, className: 'text-gray-400' }),
-                            h('span', { className: 'text-sm font-medium' }, target.title)
+                            h('span', { className: 'text-sm font-medium flex-1' }, target.title),
+                            h('button', {
+                              onClick: () => handleDeleteRelationship(rel.id),
+                              className: 'opacity-0 group-hover:opacity-100 text-red-600 hover:bg-red-50 p-1 rounded transition-opacity'
+                            }, h(Trash2, { size: 14 }))
                           ) : null;
                         }),
                         ...getItemRelationships(selectedItem.id).incoming.map((rel, idx) => {
                           const source = items.find(i => i.id === rel.from_id);
-                          return source ? h('div', { key: `in-${idx}`, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded' },
+                          return source ? h('div', { key: `in-${idx}`, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded group' },
                             h('span', { className: 'text-sm font-medium' }, source.title),
                             h(ChevronRight, { size: 16, className: 'text-gray-400' }),
                             h('span', { className: 'text-sm text-gray-600' }, rel.type),
-                            h('span', { className: 'text-sm text-gray-600' }, ' this item')
+                            h('span', { className: 'text-sm text-gray-600 flex-1' }, ' this item'),
+                            h('button', {
+                              onClick: () => handleDeleteRelationship(rel.id),
+                              className: 'opacity-0 group-hover:opacity-100 text-red-600 hover:bg-red-50 p-1 rounded transition-opacity'
+                            }, h(Trash2, { size: 14 }))
                           ) : null;
                         }),
                         getItemRelationships(selectedItem.id).outgoing.length === 0 && 
@@ -1162,9 +1466,22 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               onSave: handleUpdateItem,
               onCancel: () => setEditingItem(null)
             }),
-            showRelationshipForm && h(RelationshipForm)
+            showRelationshipForm && h(RelationshipForm),
+            showProjectForm && h(ProjectForm, {
+              onSave: handleCreateProject,
+              onCancel: () => setShowProjectForm(false)
+            })
           );
         };
+
+        // Close project dropdown when clicking outside
+        if (typeof document !== 'undefined') {
+          document.addEventListener('click', (e) => {
+            if (!e.target.closest('.project-selector')) {
+              // Will be handled by React state
+            }
+          });
+        }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(h(RequirementsManager));
