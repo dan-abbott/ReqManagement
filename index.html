@@ -90,10 +90,13 @@
           const [supabaseKey, setSupabaseKey] = useState(DEV_SUPABASE_KEY || '');
           const [supabase, setSupabase] = useState(null);
           const [isConfigured, setIsConfigured] = useState(false);
+          const [user, setUser] = useState(null);
+          const [showAuthPrompt, setShowAuthPrompt] = useState(false);
           
           const [items, setItems] = useState([]);
           const [relationships, setRelationships] = useState([]);
           const [comments, setComments] = useState([]);
+          const [auditLogs, setAuditLogs] = useState([]);
           const [projects, setProjects] = useState([]);
           const [selectedProject, setSelectedProject] = useState(null);
           const [showProjectForm, setShowProjectForm] = useState(false);
@@ -132,8 +135,50 @@
               const client = createClient(supabaseUrl, supabaseKey);
               setSupabase(client);
               setIsConfigured(true);
-              loadData(client);
+              
+              // Set up auth state listener
+              client.auth.onAuthStateChange((event, session) => {
+                setUser(session?.user || null);
+                if (session?.user) {
+                  loadData(client);
+                }
+              });
+              
+              // Check for existing session
+              client.auth.getSession().then(({ data: { session } }) => {
+                setUser(session?.user || null);
+                if (session?.user) {
+                  loadData(client);
+                } else {
+                  setShowAuthPrompt(true);
+                }
+              });
             }
+          };
+
+          const handleGoogleSignIn = async () => {
+            if (!supabase) return;
+            
+            try {
+              const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                  redirectTo: window.location.origin
+                }
+              });
+              
+              if (error) throw error;
+            } catch (error) {
+              console.error('Error signing in:', error);
+              alert('Error signing in with Google: ' + error.message);
+            }
+          };
+
+          const handleSignOut = async () => {
+            if (!supabase) return;
+            await supabase.auth.signOut();
+            setUser(null);
+            setShowAuthPrompt(true);
           };
 
           const loadData = async (client) => {
@@ -274,10 +319,19 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
           };
 
           const handleUpdateItem = async (id, updates) => {
-            if (!supabase) return;
+            if (!supabase || !user) return;
             
             try {
               const item = items.find(i => i.id === id);
+              
+              // Create audit logs for each changed field
+              for (const [key, newValue] of Object.entries(updates)) {
+                const oldValue = item[key];
+                if (oldValue !== newValue) {
+                  await createAuditLog(id, 'update', key, oldValue, newValue);
+                }
+              }
+              
               const { error } = await supabase
                 .from('items')
                 .update({ 
@@ -298,6 +352,39 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             } catch (error) {
               console.error('Error updating item:', error);
               alert('Error updating item: ' + error.message);
+            }
+          };
+
+          const handleApproveItem = async (itemId) => {
+            if (!supabase || !user) return;
+            
+            const item = items.find(i => i.id === itemId);
+            if (!item || item.reviewer_email !== user.email) {
+              alert('Only the assigned reviewer can approve this item.');
+              return;
+            }
+            
+            try {
+              await createAuditLog(itemId, 'approve', 'status', item.status, 'approved');
+              
+              const { error } = await supabase
+                .from('items')
+                .update({ 
+                  status: 'approved',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', itemId);
+              
+              if (error) throw error;
+              
+              setItems(prev => prev.map(i => 
+                i.id === itemId 
+                  ? { ...i, status: 'approved' }
+                  : i
+              ));
+            } catch (error) {
+              console.error('Error approving item:', error);
+              alert('Error approving item: ' + error.message);
             }
           };
 
@@ -329,12 +416,13 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
           };
 
           const handleAddComment = async (itemId) => {
-            if (!supabase || !newComment.trim()) return;
+            if (!supabase || !newComment.trim() || !user) return;
             
             try {
               const comment = {
                 item_id: itemId,
-                author: 'Current User',
+                author: user.user_metadata?.full_name || user.email,
+                author_email: user.email,
                 text: newComment,
                 timestamp: new Date().toISOString()
               };
@@ -347,6 +435,8 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                 setComments([data[0], ...comments]);
               }
               setNewComment('');
+              
+              await createAuditLog(itemId, 'comment', null, null, newComment);
             } catch (error) {
               console.error('Error adding comment:', error);
               alert('Error adding comment: ' + error.message);
@@ -588,6 +678,113 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             );
           };
 
+          const AuditLogViewer = ({ itemId }) => {
+            const itemLogs = auditLogs.filter(log => log.item_id === itemId);
+            
+            if (itemLogs.length === 0) {
+              return h('p', { className: 'text-sm text-gray-500' }, 'No audit history yet');
+            }
+
+            return h('div', { className: 'space-y-2' },
+              ...itemLogs.map(log =>
+                h('div', { key: log.id, className: 'text-sm p-3 bg-gray-50 rounded border-l-2 border-fresh-500' },
+                  h('div', { className: 'flex justify-between items-start mb-1' },
+                    h('span', { className: 'font-medium text-gray-900' }, log.user_name),
+                    h('span', { className: 'text-xs text-gray-500' }, 
+                      new Date(log.timestamp).toLocaleString()
+                    )
+                  ),
+                  h('div', { className: 'text-gray-700' },
+                    log.action === 'update' && log.field_name 
+                      ? `Changed ${log.field_name}: "${log.old_value}" → "${log.new_value}"`
+                      : log.action === 'approve'
+                        ? '✓ Approved this item'
+                        : log.action === 'comment'
+                          ? 'Added a comment'
+                          : `${log.action} ${log.field_name || ''}`
+                  )
+                )
+              )
+            );
+          };
+
+          const AuthPrompt = () => {
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+              h('div', { className: 'bg-white rounded-lg p-8 w-full max-w-md text-center' },
+                h('img', { 
+                  src: './Fresh logo - Suisse.png', 
+                  alt: 'Fresh Consulting',
+                  className: 'h-12 mx-auto mb-6'
+                }),
+                h('h2', { className: 'text-2xl font-bold mb-4' }, 'Sign In Required'),
+                h('p', { className: 'text-gray-600 mb-6' }, 
+                  'Please sign in with your Google account to access the Requirements Management System.'
+                ),
+                h('button', {
+                  onClick: handleGoogleSignIn,
+                  className: 'w-full bg-white border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-3 font-medium'
+                },
+                  h('svg', { width: 20, height: 20, viewBox: '0 0 24 24' },
+                    h('path', {
+                      fill: '#4285F4',
+                      d: 'M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z'
+                    }),
+                    h('path', {
+                      fill: '#34A853',
+                      d: 'M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z'
+                    }),
+                    h('path', {
+                      fill: '#FBBC05',
+                      d: 'M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z'
+                    }),
+                    h('path', {
+                      fill: '#EA4335',
+                      d: 'M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z'
+                    })
+                  ),
+                  ' Sign in with Google'
+                )
+              )
+            );
+          };
+
+          const MyReviewsPanel = () => {
+            if (!user) return null;
+            
+            const itemsNeedingMyReview = items.filter(item => 
+              item.reviewer_email === user.email && 
+              item.status !== 'approved' && 
+              item.status !== 'rejected' &&
+              selectedProject && item.project_id === selectedProject.id
+            );
+
+            if (itemsNeedingMyReview.length === 0) return null;
+
+            return h('div', { className: 'bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4' },
+              h('div', { className: 'flex items-center gap-2 mb-2' },
+                h('span', { className: 'text-yellow-800 font-semibold' }, '⚠ Items Awaiting Your Review'),
+                h('span', { className: 'bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-xs font-bold' }, 
+                  itemsNeedingMyReview.length
+                )
+              ),
+              h('div', { className: 'space-y-2' },
+                ...itemsNeedingMyReview.slice(0, 3).map(item =>
+                  h('div', { 
+                    key: item.id, 
+                    className: 'flex items-center justify-between bg-white p-2 rounded cursor-pointer hover:bg-gray-50',
+                    onClick: () => setSelectedItem(item)
+                  },
+                    h('span', { className: 'text-sm font-medium' }, item.title),
+                    h('span', { className: 'text-xs text-gray-500' }, item.type)
+                  )
+                ),
+                itemsNeedingMyReview.length > 3 && h('p', { className: 'text-xs text-yellow-700 mt-2' }, 
+                  `+${itemsNeedingMyReview.length - 3} more items`
+                )
+              )
+            );
+          };
+
           const filteredItems = useMemo(() => {
             return items.filter(item => {
               const matchesProject = !selectedProject || item.project_id === selectedProject.id;
@@ -684,6 +881,18 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               }
             }, [formData.type]);
 
+            // Get list of all users who have interacted with the system (for reviewer assignment)
+            const allUsers = useMemo(() => {
+              const userEmails = new Set();
+              comments.forEach(c => c.author_email && userEmails.add(c.author_email));
+              items.forEach(i => {
+                if (i.owner) userEmails.add(i.owner);
+                if (i.reviewer_email) userEmails.add(i.reviewer_email);
+              });
+              if (user) userEmails.add(user.email);
+              return Array.from(userEmails);
+            }, [comments, items, user]);
+
             return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
               h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto' },
                 h('h3', { className: 'text-xl font-bold mb-4' }, item ? 'Edit Item' : 'New Item'),
@@ -756,6 +965,17 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       onChange: (e) => setFormData({ ...formData, owner: e.target.value }),
                       className: 'w-full border rounded px-3 py-2'
                     })
+                  ),
+                  (formData.type === 'requirement' || formData.type === 'epic') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Assign Reviewer (Optional)'),
+                    h('select', {
+                      value: formData.reviewer_email || '',
+                      onChange: (e) => setFormData({ ...formData, reviewer_email: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    },
+                      h('option', { value: '' }, 'No reviewer assigned'),
+                      ...allUsers.map(email => h('option', { key: email, value: email }, email))
+                    )
                   ),
                   !item && h('div', {},
                     h('label', { className: 'block text-sm font-medium mb-2' }, 'Add Relationships (Optional)'),
@@ -1079,7 +1299,15 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                 h('h1', { className: 'text-2xl font-bold' }, 'Requirements Management'),
                 h(ProjectSelector)
               ),
-              h('div', { className: 'flex gap-2' },
+              h('div', { className: 'flex gap-3 items-center' },
+                user && h('div', { className: 'flex items-center gap-2 bg-fresh-700 px-3 py-2 rounded' },
+                  user.user_metadata?.avatar_url && h('img', {
+                    src: user.user_metadata.avatar_url,
+                    alt: user.user_metadata?.full_name || user.email,
+                    className: 'w-8 h-8 rounded-full'
+                  }),
+                  h('span', { className: 'text-sm' }, user.user_metadata?.full_name || user.email)
+                ),
                 h('button', {
                   onClick: () => setShowReports(!showReports),
                   className: `px-4 py-2 rounded flex items-center gap-2 ${showReports ? 'bg-fresh-700' : 'bg-fresh-500 hover:bg-fresh-700'}`
@@ -1087,7 +1315,11 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                 h('button', {
                   onClick: () => loadData(supabase),
                   className: 'px-4 py-2 bg-fresh-500 rounded hover:bg-fresh-700 flex items-center gap-2'
-                }, '🔄 Refresh')
+                }, '🔄'),
+                user && h('button', {
+                  onClick: handleSignOut,
+                  className: 'px-4 py-2 bg-fresh-700 rounded hover:bg-fresh-800 text-sm'
+                }, 'Sign Out')
               )
             ),
             loading ? h('div', { className: 'flex-1 flex items-center justify-center' },
@@ -1262,6 +1494,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             ) : h('div', { className: 'flex-1 flex overflow-hidden' },
               h('div', { className: 'w-1/3 bg-white border-r flex flex-col' },
                 h('div', { className: 'p-4 border-b space-y-3' },
+                  h(MyReviewsPanel),
                   h('div', { className: 'flex gap-2' },
                     h('button', {
                       onClick: () => setShowNewItemForm(true),
@@ -1360,6 +1593,23 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                     h('p', { className: 'text-gray-700' }, selectedItem.description)
                   ),
 
+                  selectedItem.reviewer_email && h('div', { className: 'mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded' },
+                    h('div', { className: 'flex justify-between items-start' },
+                      h('div', {},
+                        h('h3', { className: 'font-semibold text-blue-900 mb-1' }, '👤 Review Assignment'),
+                        h('p', { className: 'text-sm text-blue-800' }, `Assigned to: ${selectedItem.reviewer_email}`),
+                        selectedItem.status === 'approved' && h('p', { className: 'text-sm text-green-700 mt-2 font-medium' }, 
+                          '✓ This item has been approved'
+                        )
+                      ),
+                      user && user.email === selectedItem.reviewer_email && selectedItem.status !== 'approved' && 
+                        h('button', {
+                          onClick: () => handleApproveItem(selectedItem.id),
+                          className: 'bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-medium'
+                        }, '✓ Approve')
+                    )
+                  ),
+
                   selectedItem.rationale && h('div', { className: 'mb-6' },
                     h('h3', { className: 'font-semibold mb-2' }, 'Rationale'),
                     h('p', { className: 'text-gray-700' }, selectedItem.rationale)
@@ -1448,6 +1698,11 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                         className: 'bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700'
                       }, 'Post')
                     )
+                  ),
+
+                  h('div', { className: 'mt-6 pt-6 border-t' },
+                    h('h3', { className: 'font-semibold mb-3 text-gray-700' }, '📋 Audit History'),
+                    h(AuditLogViewer, { itemId: selectedItem.id })
                   )
                 ) : h('div', { className: 'h-full flex items-center justify-center text-gray-400' },
                   h('div', { className: 'text-center' },
