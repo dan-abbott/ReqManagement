@@ -490,10 +490,13 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
           };
 
           const reportData = useMemo(() => {
+            // Get all unique statuses actually used in the data
+            const allStatuses = [...new Set(items.map(i => i.status))];
+            
             const statusByType = {};
             itemTypes.forEach(type => {
               statusByType[type] = {};
-              statuses.forEach(status => {
+              allStatuses.forEach(status => {
                 statusByType[type][status] = items.filter(i => i.type === type && i.status === status).length;
               });
             });
@@ -504,7 +507,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             });
 
             const statusDist = {};
-            statuses.forEach(status => {
+            allStatuses.forEach(status => {
               statusDist[status] = items.filter(i => i.status === status).length;
             });
 
@@ -541,7 +544,8 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               ownerWorkload,
               totalItems: items.length,
               totalRelationships: relationships.length,
-              totalComments: comments.length
+              totalComments: comments.length,
+              allStatuses
             };
           }, [items, relationships, comments]);
 
@@ -1450,7 +1454,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                       h('thead', {},
                         h('tr', { className: 'border-b' },
                           h('th', { className: 'text-left p-2' }, 'Type'),
-                          ...statuses.map(status => h('th', { key: status, className: 'text-center p-2 capitalize' }, status)),
+                          ...reportData.allStatuses.map(status => h('th', { key: status, className: 'text-center p-2 capitalize' }, status)),
                           h('th', { className: 'text-center p-2' }, 'Total')
                         )
                       ),
@@ -1458,7 +1462,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                         itemTypes.map(type =>
                           h('tr', { key: type, className: 'border-b hover:bg-gray-50' },
                             h('td', { className: 'p-2 capitalize font-medium' }, type),
-                            ...statuses.map(status => 
+                            ...reportData.allStatuses.map(status => 
                               h('td', { key: status, className: 'text-center p-2' }, reportData.statusByType[type][status] || 0)
                             ),
                             h('td', { className: 'text-center p-2 font-semibold' },
@@ -1725,7 +1729,8 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             showProjectForm && h(ProjectForm, {
               onSave: handleCreateProject,
               onCancel: () => setShowProjectForm(false)
-            })
+            }),
+            showAuthPrompt && !user && h(AuthPrompt)
           );
         };
 
