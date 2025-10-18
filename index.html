@@ -328,6 +328,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               if (data) {
                 setSelectedItem(data);
                 setItems(prev => prev.map(i => i.id === data.id ? data : i));
+                setEditingItem(null); // Close edit mode to show updated view
               }
             } catch (error) {
               console.error('Error refreshing item:', error);
@@ -365,6 +366,22 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               if (data && data[0]) {
                 setItems([...items, data[0]]);
                 
+                // Create relationships if references provided (for test cases)
+                if (formData.references && formData.references.length > 0) {
+                  for (const refId of formData.references) {
+                    await supabase.from('relationships').insert([{
+                      from_id: data[0].id,
+                      to_id: refId,
+                      type: 'tests'
+                    }]);
+                  }
+                  // Reload relationships
+                  const { data: newRels } = await supabase.from('relationships').select('*');
+                  if (newRels) setRelationships(newRels);
+                }
+                
+                await createAuditLog(data[0].id, 'create', null, null, `Created ${data[0].type}: ${data[0].title}`);
+                
                 if (formData.parentId) {
                   const parent = items.find(i => i.id === formData.parentId);
                   if (parent) {
@@ -392,8 +409,12 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             try {
               const item = items.find(i => i.id === id);
               
+              // If reviewer is assigned, set status to in-review
+              if (updates.reviewer_email && updates.reviewer_email !== item.reviewer_email) {
+                updates = { ...updates, status: 'in-review' };
+              }
               // If item is approved and being edited, reset to draft
-              if (item.status === 'approved' && updates && Object.keys(updates).length > 0) {
+              else if (item.status === 'approved' && updates && Object.keys(updates).length > 0) {
                 updates = { ...updates, status: 'draft' };
               }
               
@@ -1298,26 +1319,26 @@ const handleCreateProject = async (projectData) => {
             // Build graph data - don't override the type property
             const graphItems = [{ ...item, level: 0, isCenter: true }];
             
-            // Add incoming (items that point TO this item) - these go above
+            // Add incoming (items that point TO this item) - these go below (reversed)
             incoming.forEach((rel, idx) => {
               const sourceItem = items.find(i => i.id === rel.from_id);
               if (sourceItem) {
                 graphItems.push({ 
                   ...sourceItem, 
-                  level: -1, 
+                  level: 1, 
                   relType: rel.type,
                   index: idx 
                 });
               }
             });
             
-            // Add outgoing (items this item points TO) - these go below
+            // Add outgoing (items this item points TO) - these go above (reversed)
             outgoing.forEach((rel, idx) => {
               const targetItem = items.find(i => i.id === rel.to_id);
               if (targetItem) {
                 graphItems.push({ 
                   ...targetItem, 
-                  level: 1, 
+                  level: -1, 
                   relType: rel.type,
                   index: idx 
                 });
