@@ -294,7 +294,8 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                 children: [],
                 version: 1
               };
-              
+              alert(`DEBUG NEWITEM OBJECT:\n${JSON.stringify(newItem, null, 2)}`);
+
               const { data, error } = await supabase.from('items').insert([newItem]).select();
               
               if (error) throw error;
