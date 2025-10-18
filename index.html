@@ -370,13 +370,13 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                 setItems([...items, data[0]]);
                 
                 // Create relationships if references provided (for test cases)
-                if (formData.references && formData.references.length > 0) {
-                  for (const refId of formData.references) {
-                    await supabase.from('relationships').insert([{
-                      from_id: data[0].id,
-                      to_id: refId,
-                      type: 'tests'
-                    }]);
+                if ((formData.references || formData.relationships) && (formData.references?.length > 0 || formData.relationships?.length > 0)) {
+                  const relationshipsToCreate = formData.references || formData.relationships || [];
+                  for (const rel of relationshipsToCreate) {
+                    const relData = typeof rel === 'number' 
+                      ? { from_id: data[0].id, to_id: rel, type: 'tests' }
+                      : { from_id: data[0].id, to_id: rel.to, type: rel.type };
+                    await supabase.from('relationships').insert([relData]);
                   }
                   // Reload relationships
                   const { data: newRels } = await supabase.from('relationships').select('*');
@@ -1237,7 +1237,7 @@ const handleCreateProject = async (projectData) => {
                       if (item) {
                         onSave(item.id, formData);
                       } else {
-                        await onSave(formData);
+                        await onSave({ ...formData, relationships: selectedRelationships });
                         // Add relationships after item is created
                         if (selectedRelationships.length > 0) {
                           // We'd need the new item ID here - will handle in onSave
