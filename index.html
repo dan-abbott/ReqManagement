@@ -47,7 +47,7 @@
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
             
-            const { useState, useEffect, useMemo, createElement: h } = window.React;
+            const { useState, useEffect, useMemo, useRef, createElement: h } = window.React;
 
         // ============================================
         // DEVELOPMENT CREDENTIALS (Set these to skip config screen)
@@ -116,6 +116,7 @@
           const [loading, setLoading] = useState(false);
           const [showGraphView, setShowGraphView] = useState(false);
           const [showApprovalModal, setShowApprovalModal] = useState(false);
+          const [showAuditHistory, setShowAuditHistory] = useState(false);
           const [approvalAction, setApprovalAction] = useState('approve');
           const [approvalNotes, setApprovalNotes] = useState('');
           
@@ -311,6 +312,28 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             });
           };
 
+          
+          const refreshSelectedItem = async () => {
+            if (!selectedItem || !supabase) return;
+            
+            try {
+              const { data, error } = await supabase
+                .from('items')
+                .select('*')
+                .eq('id', selectedItem.id)
+                .single();
+              
+              if (error) throw error;
+              
+              if (data) {
+                setSelectedItem(data);
+                setItems(prev => prev.map(i => i.id === data.id ? data : i));
+              }
+            } catch (error) {
+              console.error('Error refreshing item:', error);
+            }
+          };
+
           const handleCreateItem = async (formData) => {
                 alert(`DEBUG CREATE ITEM:\nSelected Project: ${selectedProject?.name || 'NONE'}\nProject ID: ${selectedProject?.id || 'MISSING'}`);
 
@@ -368,6 +391,11 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             
             try {
               const item = items.find(i => i.id === id);
+              
+              // If item is approved and being edited, reset to draft
+              if (item.status === 'approved' && updates && Object.keys(updates).length > 0) {
+                updates = { ...updates, status: 'draft' };
+              }
               
               // Create audit logs for each changed field
               for (const [key, newValue] of Object.entries(updates)) {
@@ -432,6 +460,8 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                   ? { ...i, status: newStatus }
                   : i
               ));
+              
+              await refreshSelectedItem();
               
               setShowApprovalModal(false);
               setApprovalNotes('');
@@ -761,27 +791,36 @@ const handleCreateProject = async (projectData) => {
           const AuditLogViewer = ({ itemId }) => {
             const itemLogs = auditLogs.filter(log => log.item_id === itemId);
             
-            if (itemLogs.length === 0) {
-              return h('p', { className: 'text-sm text-gray-500' }, 'No audit history yet');
-            }
+            if (itemLogs.length === 0) return null;
 
-            return h('div', { className: 'space-y-2' },
-              ...itemLogs.map(log =>
-                h('div', { key: log.id, className: 'text-sm p-3 bg-gray-50 rounded border-l-2 border-fresh-500' },
-                  h('div', { className: 'flex justify-between items-start mb-1' },
-                    h('span', { className: 'font-medium text-gray-900' }, log.user_name),
-                    h('span', { className: 'text-xs text-gray-500' }, 
-                      new Date(log.timestamp).toLocaleString()
+            return h('div', { className: 'border-t pt-4 mt-4' },
+              h('button', {
+                onClick: () => setShowAuditHistory(!showAuditHistory),
+                className: 'flex items-center gap-2 font-semibold text-gray-700 hover:text-gray-900 mb-3'
+              },
+                h(showAuditHistory ? ChevronDown : ChevronRight, { size: 20 }),
+                'Audit History',
+                h('span', { className: 'text-sm font-normal text-gray-500 ml-1' }, `(${itemLogs.length})`)
+              ),
+              showAuditHistory && h('div', { className: 'space-y-2 pl-7' },
+                ...itemLogs.map(log =>
+                  h('div', { key: log.id, className: 'text-sm p-3 bg-gray-50 rounded border-l-2 border-fresh-500' },
+                    h('div', { className: 'flex justify-between items-start mb-1' },
+                      h('span', { className: 'font-medium text-gray-900' }, log.user_name),
+                      h('span', { className: 'text-xs text-gray-500' }, 
+                        new Date(log.timestamp).toLocaleString()
+                      )
+                    ),
+                    h('div', { className: 'text-gray-700' },
+                      log.action === 'create' ? `Created ${log.new_value}` :
+                      log.action === 'approve' ? '✓ Approved this item' :
+                      log.action === 'reject' ? '✗ Rejected this item' :
+                      log.action === 'review_notes' ? `Review notes: ${log.new_value}` :
+                      log.action === 'comment' ? `Added comment: ${log.new_value}` :
+                      log.action === 'update' && log.field_name 
+                        ? `Changed ${log.field_name}: "${log.old_value}" → "${log.new_value}"`
+                        : `${log.action} ${log.field_name || ''}`
                     )
-                  ),
-                  h('div', { className: 'text-gray-700' },
-                    log.action === 'update' && log.field_name 
-                      ? `Changed ${log.field_name}: "${log.old_value}" → "${log.new_value}"`
-                      : log.action === 'approve'
-                        ? '✓ Approved this item'
-                        : log.action === 'comment'
-                          ? 'Added a comment'
-                          : `${log.action} ${log.field_name || ''}`
                   )
                 )
               )
@@ -831,6 +870,14 @@ const handleCreateProject = async (projectData) => {
           
           const ApprovalModal = () => {
             if (!selectedItem) return null;
+            
+            const notesRef = useRef(null);
+            
+            // Update state from ref on submit
+            const handleSubmit = () => {
+              const notes = notesRef.current?.value || '';
+              handleApproveItem(selectedItem.id, approvalAction, notes);
+            };
 
             return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
               h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
@@ -869,11 +916,8 @@ const handleCreateProject = async (projectData) => {
                 h('div', { className: 'mb-6' },
                   h('label', { className: 'block text-sm font-medium mb-2' }, 'Notes (Optional)'),
                   h('textarea', {
-                    value: approvalNotes,
-                    onChange: (e) => {
-                      e.persist();
-                      setApprovalNotes(e.target.value);
-                    },
+                    ref: notesRef,
+                    defaultValue: approvalNotes,
                     placeholder: 'Add any comments about your decision...',
                     className: 'w-full border rounded px-3 py-2 h-24',
                     rows: 3
@@ -881,7 +925,7 @@ const handleCreateProject = async (projectData) => {
                 ),
                 h('div', { className: 'flex gap-2' },
                   h('button', {
-                    onClick: () => handleApproveItem(selectedItem.id, approvalAction, approvalNotes),
+                    onClick: handleSubmit,
                     className: `flex-1 px-4 py-2 rounded font-medium text-white ${
                       approvalAction === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
                     }`
