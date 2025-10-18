@@ -188,6 +188,15 @@
             await supabase.auth.signOut();
             setUser(null);
             setShowAuthPrompt(true);
+            // Clear all view state
+            setSelectedItem(null);
+            setEditingItem(null);
+            setSelectedProject(null);
+            setItems([]);
+            setRelationships([]);
+            setComments([]);
+            setAuditLogs([]);
+            setProjects([]);
           };
 
           const loadData = async (client) => {
@@ -778,6 +787,8 @@ const handleCreateProject = async (projectData) => {
                       key: project.id,
                       onClick: () => {
                         setSelectedProject(project);
+                setSelectedItem(null);
+                setEditingItem(null);
                         setShowProjectDropdown(false);
                         setProjectSearchTerm('');
                       },
