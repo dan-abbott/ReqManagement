@@ -284,15 +284,20 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             
             try {
               const newItem = {
-                type: formData.type,
-                title: formData.title,
-                description: formData.description,
-                status: formData.status,
-                priority: formData.priority,
-                owner: formData.owner,
-                parent_id: formData.parentId,
-                children: [],
-                version: 1
+                  project_id: selectedProject.id,  // <-- ADD THIS LINE!
+                  type: formData.type,
+                  title: formData.title,
+                  description: formData.description,
+                  rationale: formData.rationale || null,
+                  test_method: formData.test_method || null,
+                  status: formData.status,
+                  priority: formData.priority || null,
+                  owner: formData.owner || null,
+                  reviewer_email: formData.reviewer_email || null,
+                  parent_id: formData.parentId,
+                  children: [],
+                  version: 1
+
               };
               alert(`DEBUG NEWITEM OBJECT:\n${JSON.stringify(newItem, null, 2)}`);
 
