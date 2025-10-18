@@ -80,12 +80,35 @@
                 parentId: null
             });
 
+            // Load saved credentials on mount
+            useEffect(() => {
+                const savedUrl = localStorage.getItem('supabaseUrl');
+                const savedKey = localStorage.getItem('supabaseKey');
+                
+                if (savedUrl && savedKey) {
+                    setSupabaseUrl(savedUrl);
+                    setSupabaseKey(savedKey);
+                    // Auto-connect if credentials are saved
+                    try {
+                        const client = createClient(savedUrl, savedKey);
+                        setSupabase(client);
+                        setIsConnected(true);
+                        loadProjects(client);
+                    } catch (error) {
+                        console.error('Auto-connect failed:', error);
+                    }
+                }
+            }, []);
+
             // Initialize Supabase
             const initializeSupabase = () => {
                 try {
                     const client = createClient(supabaseUrl, supabaseKey);
                     setSupabase(client);
                     setIsConnected(true);
+                    // Save credentials to localStorage
+                    localStorage.setItem('supabaseUrl', supabaseUrl);
+                    localStorage.setItem('supabaseKey', supabaseKey);
                     loadProjects(client);
                 } catch (error) {
                     alert('Failed to connect to Supabase: ' + error.message);
@@ -539,6 +562,25 @@ VALUES ('Sample Project', 'A sample requirements project');`}</pre>
                                     className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
                                 >
                                     <span>+</span> New Item
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (confirm('Disconnect from Supabase? Your credentials will be cleared.')) {
+                                            localStorage.removeItem('supabaseUrl');
+                                            localStorage.removeItem('supabaseKey');
+                                            setIsConnected(false);
+                                            setSupabase(null);
+                                            setSupabaseUrl('');
+                                            setSupabaseKey('');
+                                            setProjects([]);
+                                            setItems([]);
+                                            setSelectedProject(null);
+                                        }
+                                    }}
+                                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 text-sm"
+                                    title="Disconnect"
+                                >
+                                    Disconnect
                                 </button>
                             </div>
                         </div>
