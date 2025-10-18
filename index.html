@@ -312,7 +312,8 @@
                 if (error) {
                     alert('Error creating relationship: ' + error.message);
                 } else {
-                    setRelationships([...relationships, data[0]]);
+                    // Reload relationships to ensure both items show the relationship
+                    await loadProjectData(selectedProject.id);
                     await createAuditLog(fromId, 'relationship_added', { to: toId, type: type });
                 }
             };
