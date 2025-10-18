@@ -1,1132 +1,1789 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Requirements Management System</title>
-    
-    <!-- Tailwind CSS -->
+    <title>Fresh Consulting - Requirements Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- React and ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Supabase -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <!-- Babel Standalone for JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <style>
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-                sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
+    <script>
+        // Customize Tailwind with Fresh green colors
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        fresh: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        }
+                    }
+                }
+            }
         }
-    </style>
+    </script>
 </head>
 <body>
     <div id="root"></div>
+    
+    <!-- Load React and ReactDOM first -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Then load our app as a module after React is ready -->
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/+esm';
+        
+        // Wait for React to be loaded before initializing
+        async function initApp() {
+            // Wait for React to be available on window
+            while (typeof window.React === 'undefined' || typeof window.ReactDOM === 'undefined') {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            
+            const { useState, useEffect, useMemo, createElement: h } = window.React;
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
-        const { createClient } = supabase;
+        // ============================================
+        // DEVELOPMENT CREDENTIALS (Set these to skip config screen)
+        // ============================================
+        const DEV_SUPABASE_URL = 'https://ttkcqwsfdmlzxrndjrov.supabase.co';
+        const DEV_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0a2Nxd3NmZG1senhybmRqcm92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MDczMTksImV4cCI6MjA3NjI4MzMxOX0.aQEDyTLZQC8t0Z1pOWG_zNMGpDTKWu_YYmLmZq2HgXc';
+        // ============================================
+
+        // Icon components
+        const Icon = ({ d, size = 24, ...props }) => h('svg', {
+            width: size,
+            height: size,
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            stroke: 'currentColor',
+            strokeWidth: '2',
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+            ...props
+        }, typeof d === 'string' ? h('path', { d }) : d);
+
+        const Plus = ({ size }) => Icon({ size, d: 'M12 5v14M5 12h14' });
+        const Link2 = ({ size }) => Icon({ size, d: ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'].map((d, i) => h('path', { key: i, d })) });
+        const GitBranch = ({ size }) => Icon({ size, d: ['M6 3v12', h('circle', { key: 'c1', cx: 18, cy: 6, r: 3 }), h('circle', { key: 'c2', cx: 6, cy: 18, r: 3 }), h('path', { key: 'p', d: 'M18 9a9 9 0 0 1-9 9' })] });
+        const MessageSquare = ({ size }) => Icon({ size, d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' });
+        const Edit2 = ({ size }) => Icon({ size, d: 'M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z' });
+        const Trash2 = ({ size }) => Icon({ size, d: ['M3 6h18', 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2', 'M10 11v6', 'M14 11v6'].map((d, i) => h(d.includes('M') ? 'path' : 'line', { key: i, [d.includes('M') ? 'd' : 'x1']: d.includes('M') ? d : d.split(' ')[0], ...(d.includes(' ') && !d.includes('M') ? { y1: d.split(' ')[1], x2: d.split(' ')[2], y2: d.split(' ')[3] } : {}) })) });
+        const Save = ({ size }) => Icon({ size, d: ['M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z', 'M17 21v-8H7v8', 'M7 3v5h8'].map((d, i) => h(d.includes('M') ? 'path' : 'polyline', { key: i, [d.includes('M') ? 'd' : 'points']: d })) });
+        const X = ({ size }) => Icon({ size, d: h('g', {}, [h('line', { key: 1, x1: 18, y1: 6, x2: 6, y2: 18 }), h('line', { key: 2, x1: 6, y1: 6, x2: 18, y2: 18 })]) });
+        const ChevronRight = ({ size }) => Icon({ size, d: h('polyline', { points: '9 18 15 12 9 6' }) });
+        const ChevronDown = ({ size }) => Icon({ size, d: h('polyline', { points: '6 9 12 15 18 9' }) });
+        const Filter = ({ size }) => Icon({ size, d: h('polygon', { points: '22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3' }) });
+        const Search = ({ size }) => Icon({ size, d: [h('circle', { key: 'c', cx: 11, cy: 11, r: 8 }), h('path', { key: 'p', d: 'm21 21-4.35-4.35' })] });
+        const BarChart3 = ({ size }) => Icon({ size, d: ['M3 3v18h18', 'M18 17V9', 'M13 17V5', 'M8 17v-3'].map((d, i) => h('path', { key: i, d })) });
+        const PieChart = ({ size }) => Icon({ size, d: ['M21.21 15.89A10 10 0 1 1 8 2.83', 'M22 12A10 10 0 0 0 12 2v10z'].map((d, i) => h('path', { key: i, d })) });
+        const TrendingUp = ({ size }) => Icon({ size, d: [h('polyline', { key: 1, points: '23 6 13.5 15.5 8.5 10.5 1 18' }), h('polyline', { key: 2, points: '17 6 23 6 23 12' })] });
 
         const RequirementsManager = () => {
-            // Supabase setup
-            const [supabase, setSupabase] = useState(null);
-            const [supabaseUrl, setSupabaseUrl] = useState('');
-            const [supabaseKey, setSupabaseKey] = useState('');
-            const [isConnected, setIsConnected] = useState(false);
+          const [supabaseUrl, setSupabaseUrl] = useState(DEV_SUPABASE_URL || '');
+          const [supabaseKey, setSupabaseKey] = useState(DEV_SUPABASE_KEY || '');
+          const [supabase, setSupabase] = useState(null);
+          const [isConfigured, setIsConfigured] = useState(false);
+          const [user, setUser] = useState(null);
+          const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+          
+          const [items, setItems] = useState([]);
+          const [relationships, setRelationships] = useState([]);
+          const [comments, setComments] = useState([]);
+          const [auditLogs, setAuditLogs] = useState([]);
+          const [projects, setProjects] = useState([]);
+          const [selectedProject, setSelectedProject] = useState(null);
+          const [showProjectForm, setShowProjectForm] = useState(false);
+          const [projectSearchTerm, setProjectSearchTerm] = useState('');
+          const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+          const [selectedItem, setSelectedItem] = useState(null);
+          const [editingItem, setEditingItem] = useState(null);
+          const [showNewItemForm, setShowNewItemForm] = useState(false);
+          const [newComment, setNewComment] = useState('');
+          const [expandedItems, setExpandedItems] = useState(new Set([1]));
+          const [filterType, setFilterType] = useState('all');
+          const [searchTerm, setSearchTerm] = useState('');
+          const [showRelationshipForm, setShowRelationshipForm] = useState(false);
+          const [showReports, setShowReports] = useState(false);
+          const [loading, setLoading] = useState(false);
+          const [showGraphView, setShowGraphView] = useState(false);
+          
+          const itemTypes = ['epic', 'requirement', 'test-case', 'defect'];
+          const statuses = {
+            epic: ['draft', 'in-review', 'approved', 'rejected'],
+            requirement: ['draft', 'in-review', 'approved', 'rejected'],
+            'test-case': ['not-tested', 'pass', 'fail'],
+            defect: ['not-started', 'in-process', 'resolved', 'backlog']
+          };
+          const priorities = ['low', 'medium', 'high', 'critical'];
+          const relationshipTypes = ['tests', 'depends-on', 'derives-from', 'relates-to'];
+
+          useEffect(() => {
+            if (DEV_SUPABASE_URL && DEV_SUPABASE_KEY && !supabase) {
+              initializeSupabase();
+            }
+          }, []);
+
+          const initializeSupabase = () => {
+            if (supabaseUrl && supabaseKey) {
+              const client = createClient(supabaseUrl, supabaseKey);
+              setSupabase(client);
+              setIsConfigured(true);
+              
+              // Set up auth state listener
+              client.auth.onAuthStateChange((event, session) => {
+                setUser(session?.user || null);
+                if (session?.user) {
+                  loadData(client);
+                }
+              });
+              
+              // Check for existing session
+              client.auth.getSession().then(({ data: { session } }) => {
+                setUser(session?.user || null);
+                if (session?.user) {
+                  loadData(client);
+                } else {
+                  setShowAuthPrompt(true);
+                }
+              });
+            }
+          };
+
+          const handleGoogleSignIn = async () => {
+            if (!supabase) return;
             
-            // App state
-            const [projects, setProjects] = useState([]);
-            const [selectedProject, setSelectedProject] = useState(null);
-            const [items, setItems] = useState([]);
-            const [relationships, setRelationships] = useState([]);
-            const [comments, setComments] = useState([]);
-            const [auditLogs, setAuditLogs] = useState([]);
-            
-            // UI state
-            const [selectedItem, setSelectedItem] = useState(null);
-            const [editingItem, setEditingItem] = useState(null);
-            const [showNewItemForm, setShowNewItemForm] = useState(false);
-            const [showApprovalModal, setShowApprovalModal] = useState(false);
-            const [approvalAction, setApprovalAction] = useState('approve');
-            const [approvalComment, setApprovalComment] = useState('');
-            const [newComment, setNewComment] = useState('');
-            const [expandedItems, setExpandedItems] = useState(new Set([1]));
-            const [filterType, setFilterType] = useState('all');
-            const [searchTerm, setSearchTerm] = useState('');
-            const [showRelationshipForm, setShowRelationshipForm] = useState(false);
-            const [newRelationship, setNewRelationship] = useState({ from: '', to: '', type: 'related-to' });
-            const [formData, setFormData] = useState({
-                type: 'requirement',
-                title: '',
-                description: '',
-                rationale: '',
-                test_method: '',
-                status: 'draft',
-                priority: 'medium',
-                owner: '',
-                reviewer_email: '',
-                parentId: null
-            });
-
-            // Load saved credentials on mount
-            useEffect(() => {
-                const savedUrl = localStorage.getItem('supabaseUrl');
-                const savedKey = localStorage.getItem('supabaseKey');
-                
-                if (savedUrl && savedKey) {
-                    setSupabaseUrl(savedUrl);
-                    setSupabaseKey(savedKey);
-                    // Auto-connect if credentials are saved
-                    try {
-                        const client = createClient(savedUrl, savedKey);
-                        setSupabase(client);
-                        setIsConnected(true);
-                        loadProjects(client);
-                    } catch (error) {
-                        console.error('Auto-connect failed:', error);
-                    }
+            try {
+              // Get the full current URL including path (but strip any existing query params or hash)
+              const currentUrl = window.location.origin + window.location.pathname;
+              
+              const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                  redirectTo: currentUrl
                 }
-            }, []);
+              });
+              
+              if (error) throw error;
+            } catch (error) {
+              console.error('Error signing in:', error);
+              alert('Error signing in with Google: ' + error.message);
+            }
+          };
 
-            // Initialize Supabase
-            const initializeSupabase = () => {
-                try {
-                    const client = createClient(supabaseUrl, supabaseKey);
-                    setSupabase(client);
-                    setIsConnected(true);
-                    // Save credentials to localStorage
-                    localStorage.setItem('supabaseUrl', supabaseUrl);
-                    localStorage.setItem('supabaseKey', supabaseKey);
-                    loadProjects(client);
-                } catch (error) {
-                    alert('Failed to connect to Supabase: ' + error.message);
+          const handleSignOut = async () => {
+            if (!supabase) return;
+            await supabase.auth.signOut();
+            setUser(null);
+            setShowAuthPrompt(true);
+          };
+
+          const loadData = async (client) => {
+            setLoading(true);
+            try {
+              const [itemsRes, relationshipsRes, commentsRes, projectsRes] = await Promise.all([
+                client.from('items').select('*').order('id'),
+                client.from('relationships').select('*'),
+                client.from('comments').select('*').order('timestamp', { ascending: false }),
+                client.from('projects').select('*').order('name')
+              ]);
+              
+              if (itemsRes.data) setItems(itemsRes.data);
+              if (relationshipsRes.data) setRelationships(relationshipsRes.data);
+              if (commentsRes.data) setComments(commentsRes.data);
+              if (projectsRes.data) {
+                setProjects(projectsRes.data);
+                // Auto-select first project if none selected
+                if (!selectedProject && projectsRes.data.length > 0) {
+                  setSelectedProject(projectsRes.data[0]);
                 }
-            };
+              }
+            } catch (error) {
+              console.error('Error loading data:', error);
+              alert('Error loading data. Please check your Supabase credentials and table setup.');
+            }
+            setLoading(false);
+          };
 
-            // Database operations
-            const loadProjects = async (client) => {
-                const { data, error } = await client.from('projects').select('*');
-                if (error) {
-                    console.error('Error loading projects:', error);
-                } else {
-                    setProjects(data || []);
-                    if (data && data.length > 0) {
-                        selectProject(data[0], client);
-                    }
-                }
-            };
+          const setupDatabase = async () => {
+            alert(`Please run these SQL commands in your Supabase SQL editor:
 
-            const selectProject = async (project, client = supabase) => {
-                setSelectedProject(project);
-                await loadProjectData(project.id, client);
-            };
-
-            const loadProjectData = async (projectId, client = supabase) => {
-                // Load items
-                const { data: itemsData, error: itemsError } = await client
-                    .from('items')
-                    .select('*')
-                    .eq('project_id', projectId)
-                    .order('id');
-                
-                if (itemsError) {
-                    console.error('Error loading items:', itemsError);
-                } else {
-                    setItems(itemsData || []);
-                }
-
-                // Load relationships
-                const { data: relsData, error: relsError } = await client
-                    .from('relationships')
-                    .select('*')
-                    .eq('project_id', projectId);
-                
-                if (relsError) {
-                    console.error('Error loading relationships:', relsError);
-                } else {
-                    setRelationships(relsData || []);
-                }
-
-                // Load comments
-                const { data: commentsData, error: commentsError } = await client
-                    .from('comments')
-                    .select('*')
-                    .order('created_at', { ascending: false });
-                
-                if (commentsError) {
-                    console.error('Error loading comments:', commentsError);
-                } else {
-                    setComments(commentsData || []);
-                }
-
-                // Load audit logs
-                const { data: logsData, error: logsError } = await client
-                    .from('audit_logs')
-                    .select('*')
-                    .eq('project_id', projectId)
-                    .order('created_at', { ascending: false });
-                
-                if (logsError) {
-                    console.error('Error loading audit logs:', logsError);
-                } else {
-                    setAuditLogs(logsData || []);
-                }
-            };
-
-            const createAuditLog = async (itemId, action, details = null) => {
-                if (!supabase || !selectedProject) return;
-                
-                const logEntry = {
-                    project_id: selectedProject.id,
-                    item_id: itemId,
-                    action: action,
-                    details: details,
-                    user_email: 'current_user@example.com',
-                    created_at: new Date().toISOString()
-                };
-
-                const { data, error } = await supabase
-                    .from('audit_logs')
-                    .insert([logEntry])
-                    .select();
-
-                if (error) {
-                    console.error('Error creating audit log:', error);
-                } else if (data) {
-                    setAuditLogs(prev => [data[0], ...prev]);
-                }
-            };
-
-            const createItem = async () => {
-                if (!supabase || !selectedProject) return;
-
-                const newItem = {
-                    project_id: selectedProject.id,
-                    type: formData.type,
-                    title: formData.title,
-                    description: formData.description,
-                    rationale: formData.rationale || null,
-                    test_method: formData.test_method || null,
-                    status: formData.status,
-                    priority: formData.priority || null,
-                    owner: formData.owner || null,
-                    reviewer_email: formData.reviewer_email || null,
-                    parent_id: formData.parentId,
-                    children: [],
-                    version: 1
-                };
-
-                const { data, error } = await supabase
-                    .from('items')
-                    .insert([newItem])
-                    .select();
-
-                if (error) {
-                    alert('Error creating item: ' + error.message);
-                } else {
-                    setItems([...items, data[0]]);
-                    
-                    if (formData.parentId) {
-                        await createRelationship(data[0].id, formData.parentId, 'parent-child');
-                    }
-                    
-                    await createAuditLog(data[0].id, 'created', { title: formData.title, type: formData.type });
-                    
-                    setShowNewItemForm(false);
-                    resetForm();
-                }
-            };
-
-            const updateItem = async (itemId, updates) => {
-                if (!supabase) return;
-
-                const { data, error } = await supabase
-                    .from('items')
-                    .update(updates)
-                    .eq('id', itemId)
-                    .select();
-
-                if (error) {
-                    alert('Error updating item: ' + error.message);
-                } else {
-                    setItems(items.map(item => item.id === itemId ? data[0] : item));
-                    await createAuditLog(itemId, 'updated', updates);
-                    setEditingItem(null);
-                }
-            };
-
-            const deleteItem = async (itemId) => {
-                if (!supabase) return;
-                if (!confirm('Are you sure you want to delete this item?')) return;
-
-                const { error } = await supabase
-                    .from('items')
-                    .delete()
-                    .eq('id', itemId);
-
-                if (error) {
-                    alert('Error deleting item: ' + error.message);
-                } else {
-                    setItems(items.filter(item => item.id !== itemId));
-                    await createAuditLog(itemId, 'deleted');
-                    if (selectedItem?.id === itemId) {
-                        setSelectedItem(null);
-                    }
-                }
-            };
-
-            const handleApprovalAction = async () => {
-                if (!selectedItem || !supabase) return;
-
-                const newStatus = approvalAction === 'approve' ? 'approved' : 'rejected';
-                
-                await updateItem(selectedItem.id, { 
-                    status: newStatus,
-                    reviewer_email: 'current_user@example.com'
-                });
-
-                if (approvalComment.trim()) {
-                    await addComment(selectedItem.id, approvalComment);
-                }
-
-                await createAuditLog(selectedItem.id, approvalAction, {
-                    status: newStatus,
-                    comment: approvalComment,
-                    reviewer: 'current_user@example.com'
-                });
-
-                setShowApprovalModal(false);
-                setApprovalComment('');
-                setApprovalAction('approve');
-
-                const updated = items.find(i => i.id === selectedItem.id);
-                if (updated) {
-                    setSelectedItem({ ...updated, status: newStatus });
-                }
-            };
-
-            const createRelationship = async (fromId, toId, type) => {
-                if (!supabase || !selectedProject) return;
-
-                const newRel = {
-                    project_id: selectedProject.id,
-                    from_item_id: fromId,
-                    to_item_id: toId,
-                    relationship_type: type
-                };
-
-                const { data, error } = await supabase
-                    .from('relationships')
-                    .insert([newRel])
-                    .select();
-
-                if (error) {
-                    alert('Error creating relationship: ' + error.message);
-                } else {
-                    // Reload relationships to ensure both items show the relationship
-                    await loadProjectData(selectedProject.id);
-                    await createAuditLog(fromId, 'relationship_added', { to: toId, type: type });
-                }
-            };
-
-            const addComment = async (itemId, text) => {
-                if (!supabase || !text.trim()) return;
-
-                const newCommentObj = {
-                    item_id: itemId,
-                    author: 'current_user@example.com',
-                    text: text,
-                    created_at: new Date().toISOString()
-                };
-
-                const { data, error } = await supabase
-                    .from('comments')
-                    .insert([newCommentObj])
-                    .select();
-
-                if (error) {
-                    alert('Error adding comment: ' + error.message);
-                } else {
-                    setComments([data[0], ...comments]);
-                    setNewComment('');
-                }
-            };
-
-            const resetForm = () => {
-                setFormData({
-                    type: 'requirement',
-                    title: '',
-                    description: '',
-                    rationale: '',
-                    test_method: '',
-                    status: 'draft',
-                    priority: 'medium',
-                    owner: '',
-                    reviewer_email: '',
-                    parentId: null
-                });
-            };
-
-            const getItemRelationships = (itemId) => {
-                return relationships.filter(rel => 
-                    rel.from_item_id === itemId || rel.to_item_id === itemId
-                );
-            };
-
-            const getRelatedItem = (relationship, currentItemId) => {
-                const relatedId = relationship.from_item_id === currentItemId 
-                    ? relationship.to_item_id 
-                    : relationship.from_item_id;
-                return items.find(item => item.id === relatedId);
-            };
-
-            const getItemComments = (itemId) => {
-                return comments.filter(c => c.item_id === itemId);
-            };
-
-            const getItemAuditLogs = (itemId) => {
-                return auditLogs.filter(log => log.item_id === itemId);
-            };
-
-            const filteredItems = items.filter(item => {
-                const matchesType = filterType === 'all' || item.type === filterType;
-                const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                    item.description.toLowerCase().includes(searchTerm.toLowerCase());
-                return matchesType && matchesSearch;
-            });
-
-            const getStatusColor = (status) => {
-                const colors = {
-                    'draft': 'bg-gray-200 text-gray-700',
-                    'in-review': 'bg-yellow-200 text-yellow-800',
-                    'approved': 'bg-green-200 text-green-800',
-                    'rejected': 'bg-red-200 text-red-800'
-                };
-                return colors[status] || 'bg-gray-200 text-gray-700';
-            };
-
-            const getPriorityColor = (priority) => {
-                const colors = {
-                    'low': 'bg-blue-100 text-blue-700',
-                    'medium': 'bg-yellow-100 text-yellow-700',
-                    'high': 'bg-red-100 text-red-700'
-                };
-                return colors[priority] || 'bg-gray-100 text-gray-700';
-            };
-
-            if (!isConnected) {
-                return (
-                    <div className="min-h-screen bg-gray-50 p-6">
-                        <div className="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
-                            <h1 className="text-2xl font-bold mb-6">Requirements Management System</h1>
-                            <p className="text-gray-600 mb-6">Connect to your Supabase database to get started.</p>
-                            
-                            <div className="space-y-4 mb-6">
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">Supabase Project URL</label>
-                                    <input
-                                        type="text"
-                                        value={supabaseUrl}
-                                        onChange={(e) => setSupabaseUrl(e.target.value)}
-                                        placeholder="https://your-project.supabase.co"
-                                        className="w-full border rounded px-4 py-2"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">Supabase Anon Key</label>
-                                    <input
-                                        type="password"
-                                        value={supabaseKey}
-                                        onChange={(e) => setSupabaseKey(e.target.value)}
-                                        placeholder="Your anon key"
-                                        className="w-full border rounded px-4 py-2"
-                                    />
-                                </div>
-                            </div>
-                            
-                            <button
-                                onClick={initializeSupabase}
-                                disabled={!supabaseUrl || !supabaseKey}
-                                className="w-full bg-blue-600 text-white px-4 py-3 rounded hover:bg-blue-700 disabled:bg-gray-300 font-semibold"
-                            >
-                                Connect to Supabase
-                            </button>
-
-                            <div className="mt-6 p-4 bg-blue-50 rounded border border-blue-200">
-                                <h3 className="font-semibold text-blue-900 mb-2">Need Database Setup?</h3>
-                                <p className="text-sm text-blue-800 mb-3">
-                                    Run this SQL in your Supabase SQL Editor to create the required tables:
-                                </p>
-                                <div className="bg-white p-3 rounded border text-xs font-mono overflow-x-auto">
-                                    <pre>{`-- Create projects table
 CREATE TABLE projects (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  pid TEXT NOT NULL UNIQUE,
+  project_manager TEXT,
+  lead_engineer TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Create items table
 CREATE TABLE items (
-    id SERIAL PRIMARY KEY,
-    project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
-    type TEXT NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    rationale TEXT,
-    test_method TEXT,
-    status TEXT DEFAULT 'draft',
-    priority TEXT,
-    owner TEXT,
-    reviewer_email TEXT,
-    parent_id INTEGER,
-    children INTEGER[] DEFAULT '{}',
-    version INTEGER DEFAULT 1,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+  id BIGSERIAL PRIMARY KEY,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  rationale TEXT,
+  test_method TEXT,
+  status TEXT NOT NULL,
+  priority TEXT,
+  owner TEXT,
+  version INTEGER DEFAULT 1,
+  parent_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
+  children INTEGER[] DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Create relationships table
 CREATE TABLE relationships (
-    id SERIAL PRIMARY KEY,
-    project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
-    from_item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
-    to_item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
-    relationship_type TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+  id BIGSERIAL PRIMARY KEY,
+  from_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
+  to_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Create comments table
 CREATE TABLE comments (
-    id SERIAL PRIMARY KEY,
-    item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
-    author TEXT NOT NULL,
-    text TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+  id BIGSERIAL PRIMARY KEY,
+  item_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
+  author TEXT NOT NULL,
+  text TEXT NOT NULL,
+  timestamp TIMESTAMP DEFAULT NOW()
 );
 
--- Create audit_logs table
-CREATE TABLE audit_logs (
-    id SERIAL PRIMARY KEY,
-    project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
-    item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
-    action TEXT NOT NULL,
-    details JSONB,
-    user_email TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE relationships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 
--- Insert a sample project
-INSERT INTO projects (name, description) 
-VALUES ('Sample Project', 'A sample requirements project');`}</pre>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
+CREATE POLICY "Enable all operations" ON projects FOR ALL USING (true);
+CREATE POLICY "Enable all operations" ON items FOR ALL USING (true);
+CREATE POLICY "Enable all operations" ON relationships FOR ALL USING (true);
+CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
+          };
+
+          const toggleExpand = (id) => {
+            setExpandedItems(prev => {
+              const next = new Set(prev);
+              if (next.has(id)) next.delete(id);
+              else next.add(id);
+              return next;
+            });
+          };
+
+          const handleCreateItem = async (formData) => {
+                alert(`DEBUG CREATE ITEM:\nSelected Project: ${selectedProject?.name || 'NONE'}\nProject ID: ${selectedProject?.id || 'MISSING'}`);
+
+            if (!supabase) return;
+            
+            try {
+              const newItem = {
+                  project_id: selectedProject.id,  // <-- ADD THIS LINE!
+                  type: formData.type,
+                  title: formData.title,
+                  description: formData.description,
+                  rationale: formData.rationale || null,
+                  test_method: formData.test_method || null,
+                  status: formData.status,
+                  priority: formData.priority || null,
+                  owner: formData.owner || null,
+                  reviewer_email: formData.reviewer_email || null,
+                  parent_id: formData.parentId,
+                  children: [],
+                  version: 1
+
+              };
+              alert(`DEBUG NEWITEM OBJECT:\n${JSON.stringify(newItem, null, 2)}`);
+
+              const { data, error } = await supabase.from('items').insert([newItem]).select();
+              
+              if (error) throw error;
+              
+              if (data && data[0]) {
+                setItems([...items, data[0]]);
+                
+                if (formData.parentId) {
+                  const parent = items.find(i => i.id === formData.parentId);
+                  if (parent) {
+                    const updatedChildren = [...(parent.children || []), data[0].id];
+                    await supabase.from('items').update({ children: updatedChildren }).eq('id', formData.parentId);
+                    setItems(prev => prev.map(item => 
+                      item.id === formData.parentId 
+                        ? { ...item, children: updatedChildren }
+                        : item
+                    ));
+                  }
+                }
+              }
+              
+              setShowNewItemForm(false);
+            } catch (error) {
+              console.error('Error creating item:', error);
+              alert('Error creating item: ' + error.message);
+            }
+          };
+
+          const handleUpdateItem = async (id, updates) => {
+            if (!supabase || !user) return;
+            
+            try {
+              const item = items.find(i => i.id === id);
+              
+              // Create audit logs for each changed field
+              for (const [key, newValue] of Object.entries(updates)) {
+                const oldValue = item[key];
+                if (oldValue !== newValue) {
+                  await createAuditLog(id, 'update', key, oldValue, newValue);
+                }
+              }
+              
+              const { error } = await supabase
+                .from('items')
+                .update({ 
+                  ...updates, 
+                  version: item.version + 1,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', id);
+              
+              if (error) throw error;
+              
+              setItems(prev => prev.map(item => 
+                item.id === id 
+                  ? { ...item, ...updates, version: item.version + 1 }
+                  : item
+              ));
+              setEditingItem(null);
+            } catch (error) {
+              console.error('Error updating item:', error);
+              alert('Error updating item: ' + error.message);
+            }
+          };
+
+          const handleApproveItem = async (itemId) => {
+            if (!supabase || !user) return;
+            
+            const item = items.find(i => i.id === itemId);
+            if (!item || item.reviewer_email !== user.email) {
+              alert('Only the assigned reviewer can approve this item.');
+              return;
+            }
+            
+            try {
+              await createAuditLog(itemId, 'approve', 'status', item.status, 'approved');
+              
+              const { error } = await supabase
+                .from('items')
+                .update({ 
+                  status: 'approved',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', itemId);
+              
+              if (error) throw error;
+              
+              setItems(prev => prev.map(i => 
+                i.id === itemId 
+                  ? { ...i, status: 'approved' }
+                  : i
+              ));
+            } catch (error) {
+              console.error('Error approving item:', error);
+              alert('Error approving item: ' + error.message);
+            }
+          };
+
+          const handleDeleteItem = async (id) => {
+            if (!supabase) return;
+            
+            try {
+              const item = items.find(i => i.id === id);
+              
+              if (item.parent_id) {
+                const parent = items.find(i => i.id === item.parent_id);
+                if (parent) {
+                  const updatedChildren = parent.children.filter(c => c !== id);
+                  await supabase.from('items').update({ children: updatedChildren }).eq('id', item.parent_id);
+                }
+              }
+              
+              const { error } = await supabase.from('items').delete().eq('id', id);
+              
+              if (error) throw error;
+              
+              setItems(prev => prev.filter(i => i.id !== id));
+              setRelationships(prev => prev.filter(r => r.from_id !== id && r.to_id !== id));
+              setSelectedItem(null);
+            } catch (error) {
+              console.error('Error deleting item:', error);
+              alert('Error deleting item: ' + error.message);
+            }
+          };
+
+const handleCreateProject = async (projectData) => {
+  if (!supabase || !user) return;
+  
+  try {
+    alert('DEBUG: About to create project');
+    const { data, error } = await supabase.from('projects').insert([projectData]).select();
+    
+    if (error) throw error;
+    
+    if (data && data[0]) {
+      alert(`DEBUG: Project created with ID: ${data[0].id}`);
+      setProjects([...projects, data[0]]);
+      setSelectedProject(data[0]);
+      alert(`DEBUG: Selected project set to: ${JSON.stringify(data[0])}`);
+    }
+    
+    setShowProjectForm(false);
+  } catch (error) {
+    console.error('Error creating project:', error);
+    alert('Error creating project: ' + error.message);
+  }
+};
+
+          const handleAddComment = async (itemId) => {
+            if (!supabase || !newComment.trim() || !user) return;
+            
+            try {
+              const comment = {
+                item_id: itemId,
+                author: user.user_metadata?.full_name || user.email,
+                author_email: user.email,
+                text: newComment,
+                timestamp: new Date().toISOString()
+              };
+              
+              const { data, error } = await supabase.from('comments').insert([comment]).select();
+              
+              if (error) throw error;
+              
+              if (data && data[0]) {
+                setComments([data[0], ...comments]);
+              }
+              setNewComment('');
+              
+              await createAuditLog(itemId, 'comment', null, null, newComment);
+            } catch (error) {
+              console.error('Error adding comment:', error);
+              alert('Error adding comment: ' + error.message);
+            }
+          };
+
+          const handleAddRelationship = async (from, to, type) => {
+            if (!supabase) return;
+            
+            try {
+              const relationship = {
+                from_id: from,
+                to_id: to,
+                type: type
+              };
+              
+              const { data, error } = await supabase.from('relationships').insert([relationship]).select();
+              
+              if (error) throw error;
+              
+              if (data && data[0]) {
+                setRelationships([...relationships, data[0]]);
+              }
+              setShowRelationshipForm(false);
+            } catch (error) {
+              console.error('Error adding relationship:', error);
+              alert('Error adding relationship: ' + error.message);
+            }
+          };
+
+          const handleDeleteRelationship = async (relationshipId) => {
+            if (!supabase) return;
+            
+            try {
+              const { error } = await supabase.from('relationships').delete().eq('id', relationshipId);
+              
+              if (error) throw error;
+              
+              setRelationships(prev => prev.filter(r => r.id !== relationshipId));
+            } catch (error) {
+              console.error('Error deleting relationship:', error);
+              alert('Error deleting relationship: ' + error.message);
+            }
+          };
+
+          const getItemRelationships = (itemId) => {
+            return {
+              outgoing: relationships.filter(r => r.from_id === itemId),
+              incoming: relationships.filter(r => r.to_id === itemId),
+            };
+          };
+
+          const reportData = useMemo(() => {
+            // Get all unique statuses actually used in the data
+            const allStatuses = [...new Set(items.map(i => i.status))];
+            
+            const statusByType = {};
+            itemTypes.forEach(type => {
+              statusByType[type] = {};
+              allStatuses.forEach(status => {
+                statusByType[type][status] = items.filter(i => i.type === type && i.status === status).length;
+              });
+            });
+
+            const priorityDist = {};
+            priorities.forEach(priority => {
+              priorityDist[priority] = items.filter(i => i.priority === priority).length;
+            });
+
+            const statusDist = {};
+            allStatuses.forEach(status => {
+              statusDist[status] = items.filter(i => i.status === status).length;
+            });
+
+            const typeDist = {};
+            itemTypes.forEach(type => {
+              typeDist[type] = items.filter(i => i.type === type).length;
+            });
+
+            const requirements = items.filter(i => i.type === 'requirement');
+            const testCases = items.filter(i => i.type === 'test-case');
+            const requirementsWithTests = requirements.filter(req => 
+              relationships.some(r => r.to_id === req.id && items.find(i => i.id === r.from_id && i.type === 'test-case'))
+            ).length;
+            
+            const testCoverage = requirements.length > 0 ? (requirementsWithTests / requirements.length * 100).toFixed(1) : 0;
+
+            const itemsWithRelationships = new Set([...relationships.map(r => r.from_id), ...relationships.map(r => r.to_id)]).size;
+            const traceabilityScore = items.length > 0 ? (itemsWithRelationships / items.length * 100).toFixed(1) : 0;
+
+            const ownerWorkload = {};
+            items.forEach(item => {
+              if (item.owner) {
+                ownerWorkload[item.owner] = (ownerWorkload[item.owner] || 0) + 1;
+              }
+            });
+
+            return {
+              statusByType,
+              priorityDist,
+              statusDist,
+              typeDist,
+              testCoverage,
+              traceabilityScore,
+              ownerWorkload,
+              totalItems: items.length,
+              totalRelationships: relationships.length,
+              totalComments: comments.length,
+              allStatuses
+            };
+          }, [items, relationships, comments]);
+
+          const ProjectForm = ({ onSave, onCancel }) => {
+            const [formData, setFormData] = useState({
+              name: '',
+              pid: '',
+              project_manager: '',
+              lead_engineer: ''
+            });
+
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
+                h('h3', { className: 'text-xl font-bold mb-4' }, 'New Project'),
+                h('div', { className: 'space-y-4' },
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Project Name'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.name,
+                      onChange: (e) => setFormData({ ...formData, name: e.target.value }),
+                      placeholder: 'e.g., Mobile App v2.0',
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Project ID (PID)'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.pid,
+                      onChange: (e) => setFormData({ ...formData, pid: e.target.value }),
+                      placeholder: 'e.g., MOB-2',
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Project Manager'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.project_manager,
+                      onChange: (e) => setFormData({ ...formData, project_manager: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Lead Engineer'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.lead_engineer,
+                      onChange: (e) => setFormData({ ...formData, lead_engineer: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  )
+                ),
+                h('div', { className: 'flex gap-2 mt-6' },
+                  h('button', {
+                    onClick: () => onSave(formData),
+                    disabled: !formData.name || !formData.pid,
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:bg-gray-300'
+                  }, 'Create Project'),
+                  h('button', {
+                    onClick: onCancel,
+                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
+                  }, 'Cancel')
+                )
+              )
+            );
+          };
+
+          const ProjectSelector = () => {
+            const filteredProjects = projects.filter(p => 
+              projectSearchTerm === '' || 
+              p.name.toLowerCase().includes(projectSearchTerm.toLowerCase()) ||
+              p.pid.toLowerCase().includes(projectSearchTerm.toLowerCase())
+            );
+
+            return h('div', { className: 'relative' },
+              h('button', {
+                onClick: () => setShowProjectDropdown(!showProjectDropdown),
+                className: 'bg-fresh-700 text-white px-4 py-2 rounded hover:bg-fresh-800 flex items-center gap-2 min-w-[200px]'
+              },
+                h('span', { className: 'flex-1 text-left truncate' }, 
+                  selectedProject ? `${selectedProject.pid} - ${selectedProject.name}` : 'Select Project'
+                ),
+                h(ChevronDown, { size: 16 })
+              ),
+              showProjectDropdown && h('div', {
+                className: 'absolute top-full mt-1 left-0 bg-white border rounded-lg shadow-lg w-80 max-h-96 overflow-hidden z-50'
+              },
+                h('div', { className: 'p-2 border-b sticky top-0 bg-white' },
+                  h('input', {
+                    type: 'text',
+                    placeholder: 'Search projects...',
+                    value: projectSearchTerm,
+                    onChange: (e) => setProjectSearchTerm(e.target.value),
+                    className: 'w-full border rounded px-3 py-2',
+                    autoFocus: true
+                  })
+                ),
+                h('div', { className: 'max-h-64 overflow-y-auto' },
+                  ...filteredProjects.map(project =>
+                    h('button', {
+                      key: project.id,
+                      onClick: () => {
+                        setSelectedProject(project);
+                        setShowProjectDropdown(false);
+                        setProjectSearchTerm('');
+                      },
+                      className: `w-full text-left px-4 py-3 hover:bg-gray-50 border-b ${selectedProject?.id === project.id ? 'bg-fresh-50' : ''}`
+                    },
+                      h('div', { className: 'font-medium' }, project.name),
+                      h('div', { className: 'text-sm text-gray-500' }, `PID: ${project.pid}`),
+                      project.project_manager && h('div', { className: 'text-xs text-gray-400 mt-1' }, 
+                        `PM: ${project.project_manager}${project.lead_engineer ? ` | LE: ${project.lead_engineer}` : ''}`
+                      )
+                    )
+                  ),
+                  filteredProjects.length === 0 && h('div', { className: 'px-4 py-3 text-gray-500 text-sm' }, 
+                    'No projects found'
+                  )
+                ),
+                h('button', {
+                  onClick: () => {
+                    setShowProjectForm(true);
+                    setShowProjectDropdown(false);
+                    setProjectSearchTerm('');
+                  },
+                  className: 'w-full px-4 py-3 bg-fresh-50 text-fresh-700 hover:bg-fresh-100 font-medium border-t flex items-center justify-center gap-2'
+                },
+                  h(Plus, { size: 16 }),
+                  ' New Project'
+                )
+              )
+            );
+          };
+
+          const AuditLogViewer = ({ itemId }) => {
+            const itemLogs = auditLogs.filter(log => log.item_id === itemId);
+            
+            if (itemLogs.length === 0) {
+              return h('p', { className: 'text-sm text-gray-500' }, 'No audit history yet');
             }
 
-            return (
-                <div className="min-h-screen bg-gray-50">
-                    {/* Header */}
-                    <div className="bg-white border-b px-6 py-4">
-                        <div className="flex items-center justify-between">
-                            <h1 className="text-2xl font-bold text-gray-800">Requirements Manager</h1>
-                            <div className="flex items-center gap-4">
-                                <select 
-                                    value={selectedProject?.id || ''}
-                                    onChange={(e) => {
-                                        const proj = projects.find(p => p.id === parseInt(e.target.value));
-                                        if (proj) selectProject(proj);
-                                    }}
-                                    className="border rounded px-3 py-2"
-                                >
-                                    {projects.map(proj => (
-                                        <option key={proj.id} value={proj.id}>{proj.name}</option>
-                                    ))}
-                                </select>
-                                <button
-                                    onClick={() => setShowNewItemForm(true)}
-                                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center gap-2"
-                                >
-                                    <span>+</span> New Item
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        if (confirm('Disconnect from Supabase? Your credentials will be cleared.')) {
-                                            localStorage.removeItem('supabaseUrl');
-                                            localStorage.removeItem('supabaseKey');
-                                            setIsConnected(false);
-                                            setSupabase(null);
-                                            setSupabaseUrl('');
-                                            setSupabaseKey('');
-                                            setProjects([]);
-                                            setItems([]);
-                                            setSelectedProject(null);
-                                        }
-                                    }}
-                                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 text-sm"
-                                    title="Disconnect"
-                                >
-                                    Disconnect
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Search and Filter */}
-                    <div className="bg-white border-b px-6 py-4">
-                        <div className="flex gap-4">
-                            <input
-                                type="text"
-                                placeholder="Search items..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="flex-1 border rounded px-4 py-2"
-                            />
-                            <select
-                                value={filterType}
-                                onChange={(e) => setFilterType(e.target.value)}
-                                className="border rounded px-4 py-2"
-                            >
-                                <option value="all">All Types</option>
-                                <option value="epic">Epics</option>
-                                <option value="requirement">Requirements</option>
-                                <option value="test-case">Test Cases</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Main Content */}
-                    <div className="flex h-[calc(100vh-180px)]">
-                        {/* Items List */}
-                        <div className="w-1/2 border-r overflow-y-auto bg-white">
-                            <div className="p-4 space-y-2">
-                                {filteredItems.map(item => (
-                                    <div
-                                        key={item.id}
-                                        onClick={() => setSelectedItem(item)}
-                                        className={`p-4 border rounded cursor-pointer hover:bg-gray-50 ${
-                                            selectedItem?.id === item.id ? 'bg-blue-50 border-blue-300' : ''
-                                        }`}
-                                    >
-                                        <div className="flex items-start justify-between mb-2">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-xs px-2 py-1 rounded bg-gray-100">
-                                                        {item.type.toUpperCase()}
-                                                    </span>
-                                                    <span className={`text-xs px-2 py-1 rounded ${getStatusColor(item.status)}`}>
-                                                        {item.status}
-                                                    </span>
-                                                    {item.priority && (
-                                                        <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(item.priority)}`}>
-                                                            {item.priority}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <h3 className="font-semibold text-gray-900">{item.title}</h3>
-                                                <p className="text-sm text-gray-600 mt-1">{item.description}</p>
-                                            </div>
-                                        </div>
-                                        {item.owner && (
-                                            <div className="text-xs text-gray-500">Owner: {item.owner}</div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Item Details */}
-                        <div className="w-1/2 overflow-y-auto bg-white p-6">
-                            {selectedItem ? (
-                                <div className="space-y-6">
-                                    <div className="flex items-start justify-between">
-                                        <div>
-                                            <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedItem.title}</h2>
-                                            <div className="flex gap-2">
-                                                <span className={`text-sm px-3 py-1 rounded ${getStatusColor(selectedItem.status)}`}>
-                                                    {selectedItem.status}
-                                                </span>
-                                                {selectedItem.priority && (
-                                                    <span className={`text-sm px-3 py-1 rounded ${getPriorityColor(selectedItem.priority)}`}>
-                                                        {selectedItem.priority}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            {selectedItem.status === 'in-review' && (
-                                                <button
-                                                    onClick={() => setShowApprovalModal(true)}
-                                                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                                                >
-                                                    Review
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={() => deleteItem(selectedItem.id)}
-                                                className="px-4 py-2 text-red-600 hover:bg-red-50 rounded"
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h3 className="font-semibold mb-2">Description</h3>
-                                            <p className="text-gray-700">{selectedItem.description}</p>
-                                        </div>
-
-                                        {selectedItem.rationale && (
-                                            <div>
-                                                <h3 className="font-semibold mb-2">Rationale</h3>
-                                                <p className="text-gray-700">{selectedItem.rationale}</p>
-                                            </div>
-                                        )}
-
-                                        {selectedItem.test_method && (
-                                            <div>
-                                                <h3 className="font-semibold mb-2">Test Method</h3>
-                                                <p className="text-gray-700">{selectedItem.test_method}</p>
-                                            </div>
-                                        )}
-
-                                        <div className="grid grid-cols-2 gap-4 text-sm">
-                                            <div>
-                                                <span className="font-semibold">Type:</span> {selectedItem.type}
-                                            </div>
-                                            <div>
-                                                <span className="font-semibold">Owner:</span> {selectedItem.owner || 'Unassigned'}
-                                            </div>
-                                            <div>
-                                                <span className="font-semibold">Version:</span> {selectedItem.version}
-                                            </div>
-                                            {selectedItem.reviewer_email && (
-                                                <div>
-                                                    <span className="font-semibold">Reviewer:</span> {selectedItem.reviewer_email}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Relationships */}
-                                    <div>
-                                        <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-semibold">Relationships</h3>
-                                            <button
-                                                onClick={() => {
-                                                    setNewRelationship({ ...newRelationship, from: selectedItem.id });
-                                                    setShowRelationshipForm(true);
-                                                }}
-                                                className="text-sm px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-                                            >
-                                                + Add Relationship
-                                            </button>
-                                        </div>
-                                        <div className="space-y-2">
-                                            {getItemRelationships(selectedItem.id).map((rel, idx) => {
-                                                const relatedItem = getRelatedItem(rel, selectedItem.id);
-                                                const isOutgoing = rel.from_item_id === selectedItem.id;
-                                                return (
-                                                    <div key={idx} className="p-3 bg-gray-50 rounded border">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                                                                {rel.relationship_type}
-                                                            </span>
-                                                            <span className="text-sm text-gray-600">
-                                                                {isOutgoing ? '→' : '←'}
-                                                            </span>
-                                                            <span className="text-sm font-medium">
-                                                                {relatedItem?.title || `Item #${isOutgoing ? rel.to_item_id : rel.from_item_id}`}
-                                                            </span>
-                                                        </div>
-                                                        {relatedItem && (
-                                                            <p className="text-xs text-gray-500 mt-1">{relatedItem.description}</p>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                            {getItemRelationships(selectedItem.id).length === 0 && (
-                                                <p className="text-sm text-gray-500">No relationships defined</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Comments */}
-                                    <div>
-                                        <h3 className="font-semibold mb-3">Comments</h3>
-                                        <div className="space-y-3 mb-4">
-                                            {getItemComments(selectedItem.id).map(comment => (
-                                                <div key={comment.id} className="p-3 bg-gray-50 rounded">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <span className="font-medium text-sm">{comment.author}</span>
-                                                        <span className="text-xs text-gray-500">
-                                                            {new Date(comment.created_at).toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-700">{comment.text}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                placeholder="Add a comment..."
-                                                value={newComment}
-                                                onChange={(e) => setNewComment(e.target.value)}
-                                                className="flex-1 border rounded px-3 py-2 text-sm"
-                                            />
-                                            <button
-                                                onClick={() => addComment(selectedItem.id, newComment)}
-                                                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                                            >
-                                                Add
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Audit Log */}
-                                    <div>
-                                        <h3 className="font-semibold mb-3">Activity History</h3>
-                                        <div className="space-y-2">
-                                            {getItemAuditLogs(selectedItem.id).slice(0, 10).map((log, idx) => (
-                                                <div key={idx} className="text-sm p-2 bg-gray-50 rounded">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="font-medium">{log.action}</span>
-                                                        <span className="text-xs text-gray-500">
-                                                            {new Date(log.created_at).toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                    {log.details && (
-                                                        <div className="text-xs text-gray-600 mt-1">
-                                                            {JSON.stringify(log.details)}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="text-center text-gray-500 mt-12">
-                                    Select an item to view details
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Approval Modal */}
-                    {showApprovalModal && selectedItem && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
-                                <h2 className="text-xl font-bold mb-4">Review Item</h2>
-                                <div className="mb-4">
-                                    <h3 className="font-semibold">{selectedItem.title}</h3>
-                                    <p className="text-sm text-gray-600 mt-1">{selectedItem.description}</p>
-                                </div>
-                                
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2">Action</label>
-                                    <div className="flex gap-4">
-                                        <label className="flex items-center">
-                                            <input
-                                                type="radio"
-                                                value="approve"
-                                                checked={approvalAction === 'approve'}
-                                                onChange={(e) => setApprovalAction(e.target.value)}
-                                                className="mr-2"
-                                            />
-                                            <span className="text-green-700">Approve</span>
-                                        </label>
-                                        <label className="flex items-center">
-                                            <input
-                                                type="radio"
-                                                value="reject"
-                                                checked={approvalAction === 'reject'}
-                                                onChange={(e) => setApprovalAction(e.target.value)}
-                                                className="mr-2"
-                                            />
-                                            <span className="text-red-700">Reject</span>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium mb-2">
-                                        Comment {approvalAction === 'reject' ? '(Required)' : '(Optional)'}
-                                    </label>
-                                    <textarea
-                                        value={approvalComment}
-                                        onChange={(e) => setApprovalComment(e.target.value)}
-                                        placeholder={`Add ${approvalAction === 'reject' ? 'reason for rejection' : 'review comments'}...`}
-                                        className="w-full border rounded px-3 py-2 h-24"
-                                    />
-                                </div>
-
-                                <div className="flex gap-3 justify-end">
-                                    <button
-                                        onClick={() => {
-                                            setShowApprovalModal(false);
-                                            setApprovalComment('');
-                                            setApprovalAction('approve');
-                                        }}
-                                        className="px-4 py-2 border rounded hover:bg-gray-100"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleApprovalAction}
-                                        disabled={approvalAction === 'reject' && !approvalComment.trim()}
-                                        className={`px-4 py-2 rounded text-white disabled:bg-gray-300 ${
-                                            approvalAction === 'approve' 
-                                                ? 'bg-green-600 hover:bg-green-700' 
-                                                : 'bg-red-600 hover:bg-red-700'
-                                        }`}
-                                    >
-                                        {approvalAction === 'approve' ? 'Approve' : 'Reject'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* New Item Form Modal */}
-                    {showNewItemForm && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-                                <h2 className="text-xl font-bold mb-4">Create New Item</h2>
-                                
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Type</label>
-                                        <select
-                                            value={formData.type}
-                                            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                                            className="w-full border rounded px-3 py-2"
-                                        >
-                                            <option value="epic">Epic</option>
-                                            <option value="requirement">Requirement</option>
-                                            <option value="test-case">Test Case</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Title</label>
-                                        <input
-                                            type="text"
-                                            value={formData.title}
-                                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                            className="w-full border rounded px-3 py-2"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Description</label>
-                                        <textarea
-                                            value={formData.description}
-                                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                            className="w-full border rounded px-3 py-2 h-24"
-                                        />
-                                    </div>
-
-                                    {formData.type === 'requirement' && (
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">Rationale</label>
-                                            <textarea
-                                                value={formData.rationale}
-                                                onChange={(e) => setFormData({ ...formData, rationale: e.target.value })}
-                                                className="w-full border rounded px-3 py-2 h-20"
-                                                placeholder="Why is this requirement needed?"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {formData.type === 'test-case' && (
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">Test Method</label>
-                                            <textarea
-                                                value={formData.test_method}
-                                                onChange={(e) => setFormData({ ...formData, test_method: e.target.value })}
-                                                className="w-full border rounded px-3 py-2 h-20"
-                                                placeholder="How should this be tested?"
-                                            />
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">Status</label>
-                                            <select
-                                                value={formData.status}
-                                                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                                                className="w-full border rounded px-3 py-2"
-                                            >
-                                                <option value="draft">Draft</option>
-                                                <option value="in-review">In Review</option>
-                                                <option value="approved">Approved</option>
-                                                <option value="rejected">Rejected</option>
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">Priority</label>
-                                            <select
-                                                value={formData.priority}
-                                                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                                                className="w-full border rounded px-3 py-2"
-                                            >
-                                                <option value="low">Low</option>
-                                                <option value="medium">Medium</option>
-                                                <option value="high">High</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Owner (Email)</label>
-                                        <input
-                                            type="email"
-                                            value={formData.owner}
-                                            onChange={(e) => setFormData({ ...formData, owner: e.target.value })}
-                                            className="w-full border rounded px-3 py-2"
-                                            placeholder="owner@example.com"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Reviewer (Email)</label>
-                                        <input
-                                            type="email"
-                                            value={formData.reviewer_email}
-                                            onChange={(e) => setFormData({ ...formData, reviewer_email: e.target.value })}
-                                            className="w-full border rounded px-3 py-2"
-                                            placeholder="reviewer@example.com"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Parent Item (Optional)</label>
-                                        <select
-                                            value={formData.parentId || ''}
-                                            onChange={(e) => setFormData({ ...formData, parentId: e.target.value ? parseInt(e.target.value) : null })}
-                                            className="w-full border rounded px-3 py-2"
-                                        >
-                                            <option value="">None</option>
-                                            {items.map(item => (
-                                                <option key={item.id} value={item.id}>
-                                                    {item.title} ({item.type})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-3 justify-end mt-6">
-                                    <button
-                                        onClick={() => {
-                                            setShowNewItemForm(false);
-                                            resetForm();
-                                        }}
-                                        className="px-4 py-2 border rounded hover:bg-gray-100"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={createItem}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                                    >
-                                        Create Item
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Relationship Form Modal */}
-                    {showRelationshipForm && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
-                                <h2 className="text-xl font-bold mb-4">Add Relationship</h2>
-                                
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Relationship Type</label>
-                                        <select
-                                            value={newRelationship.type}
-                                            onChange={(e) => setNewRelationship({ ...newRelationship, type: e.target.value })}
-                                            className="w-full border rounded px-3 py-2"
-                                        >
-                                            <option value="related-to">Related To</option>
-                                            <option value="depends-on">Depends On</option>
-                                            <option value="tests">Tests</option>
-                                            <option value="parent-child">Parent-Child</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Target Item</label>
-                                        <select
-                                            value={newRelationship.to || ''}
-                                            onChange={(e) => setNewRelationship({ ...newRelationship, to: parseInt(e.target.value) })}
-                                            className="w-full border rounded px-3 py-2"
-                                        >
-                                            <option value="">Select an item...</option>
-                                            {items.filter(item => item.id !== newRelationship.from).map(item => (
-                                                <option key={item.id} value={item.id}>
-                                                    {item.title} ({item.type})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-3 justify-end mt-6">
-                                    <button
-                                        onClick={() => {
-                                            setShowRelationshipForm(false);
-                                            setNewRelationship({ from: '', to: '', type: 'related-to' });
-                                        }}
-                                        className="px-4 py-2 border rounded hover:bg-gray-100"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (newRelationship.from && newRelationship.to) {
-                                                createRelationship(newRelationship.from, newRelationship.to, newRelationship.type);
-                                                setShowRelationshipForm(false);
-                                                setNewRelationship({ from: '', to: '', type: 'related-to' });
-                                            }
-                                        }}
-                                        disabled={!newRelationship.to}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300"
-                                    >
-                                        Add Relationship
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
+            return h('div', { className: 'space-y-2' },
+              ...itemLogs.map(log =>
+                h('div', { key: log.id, className: 'text-sm p-3 bg-gray-50 rounded border-l-2 border-fresh-500' },
+                  h('div', { className: 'flex justify-between items-start mb-1' },
+                    h('span', { className: 'font-medium text-gray-900' }, log.user_name),
+                    h('span', { className: 'text-xs text-gray-500' }, 
+                      new Date(log.timestamp).toLocaleString()
+                    )
+                  ),
+                  h('div', { className: 'text-gray-700' },
+                    log.action === 'update' && log.field_name 
+                      ? `Changed ${log.field_name}: "${log.old_value}" → "${log.new_value}"`
+                      : log.action === 'approve'
+                        ? '✓ Approved this item'
+                        : log.action === 'comment'
+                          ? 'Added a comment'
+                          : `${log.action} ${log.field_name || ''}`
+                  )
+                )
+              )
             );
+          };
+
+          const AuthPrompt = () => {
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+              h('div', { className: 'bg-white rounded-lg p-8 w-full max-w-md text-center' },
+                h('img', { 
+                  src: './Fresh logo - Suisse.png', 
+                  alt: 'Fresh Consulting',
+                  className: 'h-12 mx-auto mb-6'
+                }),
+                h('h2', { className: 'text-2xl font-bold mb-4' }, 'Sign In Required'),
+                h('p', { className: 'text-gray-600 mb-6' }, 
+                  'Please sign in with your Google account to access the Requirements Management System.'
+                ),
+                h('button', {
+                  onClick: handleGoogleSignIn,
+                  className: 'w-full bg-white border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-3 font-medium'
+                },
+                  h('svg', { width: 20, height: 20, viewBox: '0 0 24 24' },
+                    h('path', {
+                      fill: '#4285F4',
+                      d: 'M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z'
+                    }),
+                    h('path', {
+                      fill: '#34A853',
+                      d: 'M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z'
+                    }),
+                    h('path', {
+                      fill: '#FBBC05',
+                      d: 'M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z'
+                    }),
+                    h('path', {
+                      fill: '#EA4335',
+                      d: 'M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z'
+                    })
+                  ),
+                  ' Sign in with Google'
+                )
+              )
+            );
+          };
+
+          const MyReviewsPanel = () => {
+            if (!user) return null;
+            
+            const itemsNeedingMyReview = items.filter(item => 
+              item.reviewer_email === user.email && 
+              item.status !== 'approved' && 
+              item.status !== 'rejected' &&
+              selectedProject && item.project_id === selectedProject.id
+            );
+
+            if (itemsNeedingMyReview.length === 0) return null;
+
+            return h('div', { className: 'bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4' },
+              h('div', { className: 'flex items-center gap-2 mb-2' },
+                h('span', { className: 'text-yellow-800 font-semibold' }, '⚠ Items Awaiting Your Review'),
+                h('span', { className: 'bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-xs font-bold' }, 
+                  itemsNeedingMyReview.length
+                )
+              ),
+              h('div', { className: 'space-y-2' },
+                ...itemsNeedingMyReview.slice(0, 3).map(item =>
+                  h('div', { 
+                    key: item.id, 
+                    className: 'flex items-center justify-between bg-white p-2 rounded cursor-pointer hover:bg-gray-50',
+                    onClick: () => setSelectedItem(item)
+                  },
+                    h('span', { className: 'text-sm font-medium' }, item.title),
+                    h('span', { className: 'text-xs text-gray-500' }, item.type)
+                  )
+                ),
+                itemsNeedingMyReview.length > 3 && h('p', { className: 'text-xs text-yellow-700 mt-2' }, 
+                  `+${itemsNeedingMyReview.length - 3} more items`
+                )
+              )
+            );
+          };
+
+          const filteredItems = useMemo(() => {
+            return items.filter(item => {
+              const matchesProject = !selectedProject || item.project_id === selectedProject.id;
+              const matchesType = filterType === 'all' || item.type === filterType;
+              const matchesSearch = searchTerm === '' || 
+                item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
+              return matchesProject && matchesType && matchesSearch;
+            });
+          }, [items, selectedProject, filterType, searchTerm]);
+
+          const renderTreeItem = (item, level = 0) => {
+            const hasChildren = item.children && item.children.length > 0;
+            const isExpanded = expandedItems.has(item.id);
+            const isSelected = selectedItem?.id === item.id;
+            
+            if (!filteredItems.find(i => i.id === item.id)) return null;
+
+            return h('div', { key: item.id },
+              h('div', {
+                className: `flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-fresh-50 border-l-4 border-fresh-500' : ''}`,
+                style: { paddingLeft: `${level * 20 + 8}px` },
+                onClick: () => setSelectedItem(item)
+              },
+                hasChildren && h('button', { 
+                  onClick: (e) => { e.stopPropagation(); toggleExpand(item.id); },
+                  className: 'p-0'
+                }, isExpanded ? h(ChevronDown, { size: 16 }) : h(ChevronRight, { size: 16 })),
+                !hasChildren && h('div', { className: 'w-4' }),
+                h('span', {
+                  className: `px-2 py-1 text-xs rounded ${
+                    item.type === 'epic' ? 'bg-purple-100 text-purple-800' :
+                    item.type === 'requirement' ? 'bg-blue-100 text-blue-800' :
+                    item.type === 'test-case' ? 'bg-green-100 text-green-800' :
+                    'bg-red-100 text-red-800'
+                  }`
+                }, item.type),
+                h('span', { className: 'flex-1 font-medium text-sm' }, item.title),
+                h('span', {
+                  className: `px-2 py-1 text-xs rounded ${
+                    item.priority === 'critical' ? 'bg-red-100 text-red-800' :
+                    item.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                    item.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`
+                }, item.priority)
+              ),
+              isExpanded && hasChildren && h('div', {},
+                item.children.map(childId => {
+                  const child = items.find(i => i.id === childId);
+                  return child ? renderTreeItem(child, level + 1) : null;
+                })
+              )
+            );
+          };
+
+          const ItemForm = ({ item, onSave, onCancel }) => {
+            const [formData, setFormData] = useState(item || {
+              type: 'requirement',
+              title: '',
+              description: '',
+              rationale: '',
+              test_method: '',
+              status: 'draft',
+              priority: 'medium',
+              owner: '',
+              parentId: selectedItem?.id || null,
+            });
+
+            const [selectedRelationships, setSelectedRelationships] = useState([]);
+
+            const getFieldsForType = (type) => {
+              switch(type) {
+                case 'epic':
+                  return ['title', 'description'];
+                case 'requirement':
+                  return ['title', 'description', 'rationale', 'status', 'priority', 'owner'];
+                case 'test-case':
+                  return ['title', 'description', 'test_method', 'status', 'owner'];
+                case 'defect':
+                  return ['title', 'description', 'status', 'priority', 'owner'];
+                default:
+                  return ['title', 'description'];
+              }
+            };
+
+            const fields = getFieldsForType(formData.type);
+            const availableStatuses = statuses[formData.type] || statuses.requirement;
+
+            // Update status when type changes
+            useEffect(() => {
+              if (!availableStatuses.includes(formData.status)) {
+                setFormData(prev => ({ ...prev, status: availableStatuses[0] }));
+              }
+            }, [formData.type]);
+
+            // Get list of all users who have interacted with the system (for reviewer assignment)
+            const allUsers = useMemo(() => {
+              const userEmails = new Set();
+              comments.forEach(c => c.author_email && userEmails.add(c.author_email));
+              items.forEach(i => {
+                if (i.owner) userEmails.add(i.owner);
+                if (i.reviewer_email) userEmails.add(i.reviewer_email);
+              });
+              if (user) userEmails.add(user.email);
+              return Array.from(userEmails);
+            }, [comments, items, user]);
+
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto' },
+                h('h3', { className: 'text-xl font-bold mb-4' }, item ? 'Edit Item' : 'New Item'),
+                h('div', { className: 'space-y-4' },
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Type'),
+                    h('select', {
+                      value: formData.type,
+                      onChange: (e) => setFormData({ ...formData, type: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2',
+                      disabled: !!item
+                    }, itemTypes.map(type => h('option', { key: type, value: type }, type)))
+                  ),
+                  fields.includes('title') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Title'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.title,
+                      onChange: (e) => setFormData({ ...formData, title: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  fields.includes('description') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Description'),
+                    h('textarea', {
+                      value: formData.description,
+                      onChange: (e) => setFormData({ ...formData, description: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2 h-24'
+                    })
+                  ),
+                  fields.includes('rationale') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Rationale'),
+                    h('textarea', {
+                      value: formData.rationale || '',
+                      onChange: (e) => setFormData({ ...formData, rationale: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2 h-20'
+                    })
+                  ),
+                  fields.includes('test_method') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Test Method'),
+                    h('textarea', {
+                      value: formData.test_method || '',
+                      onChange: (e) => setFormData({ ...formData, test_method: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2 h-20'
+                    })
+                  ),
+                  h('div', { className: 'grid grid-cols-2 gap-4' },
+                    fields.includes('status') && h('div', {},
+                      h('label', { className: 'block text-sm font-medium mb-1' }, 'Status'),
+                      h('select', {
+                        value: formData.status,
+                        onChange: (e) => setFormData({ ...formData, status: e.target.value }),
+                        className: 'w-full border rounded px-3 py-2'
+                      }, availableStatuses.map(status => h('option', { key: status, value: status }, status)))
+                    ),
+                    fields.includes('priority') && h('div', {},
+                      h('label', { className: 'block text-sm font-medium mb-1' }, 'Priority'),
+                      h('select', {
+                        value: formData.priority,
+                        onChange: (e) => setFormData({ ...formData, priority: e.target.value }),
+                        className: 'w-full border rounded px-3 py-2'
+                      }, priorities.map(priority => h('option', { key: priority, value: priority }, priority)))
+                    )
+                  ),
+                  fields.includes('owner') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Owner'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.owner,
+                      onChange: (e) => setFormData({ ...formData, owner: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  (formData.type === 'requirement' || formData.type === 'epic') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Assign Reviewer (Optional)'),
+                    h('select', {
+                      value: formData.reviewer_email || '',
+                      onChange: (e) => setFormData({ ...formData, reviewer_email: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    },
+                      h('option', { value: '' }, 'No reviewer assigned'),
+                      ...allUsers.map(email => h('option', { key: email, value: email }, email))
+                    )
+                  ),
+                  !item && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Add Relationships (Optional)'),
+                    h('div', { className: 'border rounded p-3 space-y-2' },
+                      ...selectedRelationships.map((rel, idx) =>
+                        h('div', { key: idx, className: 'flex gap-2 items-center bg-gray-50 p-2 rounded' },
+                          h('select', {
+                            value: rel.type,
+                            onChange: (e) => {
+                              const updated = [...selectedRelationships];
+                              updated[idx].type = e.target.value;
+                              setSelectedRelationships(updated);
+                            },
+                            className: 'border rounded px-2 py-1 text-sm'
+                          }, relationshipTypes.map(rt => h('option', { key: rt, value: rt }, rt))),
+                          h('select', {
+                            value: rel.to,
+                            onChange: (e) => {
+                              const updated = [...selectedRelationships];
+                              updated[idx].to = Number(e.target.value);
+                              setSelectedRelationships(updated);
+                            },
+                            className: 'flex-1 border rounded px-2 py-1 text-sm'
+                          },
+                            h('option', { value: '' }, 'Select item...'),
+                            items.map(i => h('option', { key: i.id, value: i.id }, `[${i.type}] ${i.title}`))
+                          ),
+                          h('button', {
+                            onClick: () => setSelectedRelationships(selectedRelationships.filter((_, i) => i !== idx)),
+                            className: 'text-red-600 hover:bg-red-50 p-1 rounded'
+                          }, h(X, { size: 16 }))
+                        )
+                      ),
+                      h('button', {
+                        onClick: () => setSelectedRelationships([...selectedRelationships, { type: 'relates-to', to: '' }]),
+                        className: 'text-fresh-600 hover:bg-fresh-50 px-3 py-1 rounded text-sm flex items-center gap-1'
+                      }, h(Plus, { size: 14 }), ' Add Relationship')
+                    )
+                  )
+                ),
+                h('div', { className: 'flex gap-2 mt-6' },
+                  h('button', {
+                    onClick: async () => {
+                      if (item) {
+                        onSave(item.id, formData);
+                      } else {
+                        await onSave(formData);
+                        // Add relationships after item is created
+                        if (selectedRelationships.length > 0) {
+                          // We'd need the new item ID here - will handle in onSave
+                        }
+                      }
+                    },
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
+                  }, h(Save, { size: 16 }), ' Save'),
+                  h('button', {
+                    onClick: onCancel,
+                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 flex items-center justify-center gap-2'
+                  }, h(X, { size: 16 }), ' Cancel')
+                )
+              )
+            );
+          };
+
+          const RelationshipForm = () => {
+            const [from, setFrom] = useState(selectedItem?.id || '');
+            const [to, setTo] = useState('');
+            const [type, setType] = useState('tests');
+
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
+                h('h3', { className: 'text-xl font-bold mb-4' }, 'Add Relationship'),
+                h('div', { className: 'space-y-4' },
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'From Item'),
+                    h('select', {
+                      value: from,
+                      onChange: (e) => setFrom(Number(e.target.value)),
+                      className: 'w-full border rounded px-3 py-2'
+                    }, 
+                      h('option', { value: '' }, 'Select item...'),
+                      items.map(item => h('option', { key: item.id, value: item.id }, `[${item.type}] ${item.title}`))
+                    )
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Relationship Type'),
+                    h('select', {
+                      value: type,
+                      onChange: (e) => setType(e.target.value),
+                      className: 'w-full border rounded px-3 py-2'
+                    }, relationshipTypes.map(rt => h('option', { key: rt, value: rt }, rt)))
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'To Item'),
+                    h('select', {
+                      value: to,
+                      onChange: (e) => setTo(Number(e.target.value)),
+                      className: 'w-full border rounded px-3 py-2'
+                    },
+                      h('option', { value: '' }, 'Select item...'),
+                      items.filter(i => i.id !== from).map(item => h('option', { key: item.id, value: item.id }, `[${item.type}] ${item.title}`))
+                    )
+                  )
+                ),
+                h('div', { className: 'flex gap-2 mt-6' },
+                  h('button', {
+                    onClick: () => from && to && handleAddRelationship(from, to, type),
+                    disabled: !from || !to,
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:bg-gray-300'
+                  }, 'Add Relationship'),
+                  h('button', {
+                    onClick: () => setShowRelationshipForm(false),
+                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
+                  }, 'Cancel')
+                )
+              )
+            );
+          };
+
+          const RelationshipGraph = ({ item }) => {
+            if (!item) return null;
+
+            const outgoing = getItemRelationships(item.id).outgoing;
+            const incoming = getItemRelationships(item.id).incoming;
+            
+            // Build graph data - don't override the type property
+            const graphItems = [{ ...item, level: 0, isCenter: true }];
+            
+            // Add incoming (items that point TO this item) - these go above
+            incoming.forEach((rel, idx) => {
+              const sourceItem = items.find(i => i.id === rel.from_id);
+              if (sourceItem) {
+                graphItems.push({ 
+                  ...sourceItem, 
+                  level: -1, 
+                  relType: rel.type,
+                  index: idx 
+                });
+              }
+            });
+            
+            // Add outgoing (items this item points TO) - these go below
+            outgoing.forEach((rel, idx) => {
+              const targetItem = items.find(i => i.id === rel.to_id);
+              if (targetItem) {
+                graphItems.push({ 
+                  ...targetItem, 
+                  level: 1, 
+                  relType: rel.type,
+                  index: idx 
+                });
+              }
+            });
+
+            const width = 800;
+            const height = 600;
+            const centerY = height / 2;
+            const centerX = width / 2;
+            const levelSpacing = 200;
+            const nodeWidth = 180;
+            const nodeHeight = 60;
+
+            return h('div', { className: 'bg-white p-4 rounded-lg border' },
+              h('svg', { width, height, className: 'mx-auto' },
+                // Draw connections
+                ...graphItems.filter(gi => gi.level !== 0).map(gi => {
+                  const itemsAtLevel = graphItems.filter(g => g.level === gi.level).length;
+                  const spacing = Math.min(250, width / (itemsAtLevel + 1));
+                  const x = centerX + (gi.index - (itemsAtLevel - 1) / 2) * spacing;
+                  const y = centerY + gi.level * levelSpacing;
+                  
+                  return h('g', { key: `conn-${gi.id}` },
+                    h('line', {
+                      x1: centerX,
+                      y1: centerY,
+                      x2: x,
+                      y2: y,
+                      stroke: gi.level < 0 ? '#16a34a' : '#3b82f6',
+                      strokeWidth: 2,
+                      markerEnd: 'url(#arrowhead)'
+                    }),
+                    h('text', {
+                      x: (centerX + x) / 2,
+                      y: (centerY + y) / 2 - 5,
+                      fontSize: 11,
+                      fill: '#666',
+                      textAnchor: 'middle'
+                    }, gi.relType)
+                  );
+                }),
+                
+                // Arrow marker definition
+                h('defs', {},
+                  h('marker', {
+                    id: 'arrowhead',
+                    markerWidth: 10,
+                    markerHeight: 7,
+                    refX: 9,
+                    refY: 3.5,
+                    orient: 'auto'
+                  },
+                    h('polygon', {
+                      points: '0 0, 10 3.5, 0 7',
+                      fill: '#666'
+                    })
+                  )
+                ),
+                
+                // Draw nodes
+                ...graphItems.map(gi => {
+                  const itemsAtLevel = graphItems.filter(g => g.level === gi.level).length;
+                  const spacing = Math.min(250, width / (itemsAtLevel + 1));
+                  const x = gi.level === 0 ? centerX : centerX + (gi.index - (itemsAtLevel - 1) / 2) * spacing;
+                  const y = centerY + gi.level * levelSpacing;
+                  
+                  const bgColor = gi.isCenter ? '#22c55e' :
+                                  gi.type === 'epic' ? '#a855f7' :
+                                  gi.type === 'requirement' ? '#3b82f6' :
+                                  gi.type === 'test-case' ? '#10b981' : '#ef4444';
+                  
+                  return h('g', { key: `node-${gi.id}` },
+                    h('rect', {
+                      x: x - nodeWidth / 2,
+                      y: y - nodeHeight / 2,
+                      width: nodeWidth,
+                      height: nodeHeight,
+                      fill: bgColor,
+                      rx: 8,
+                      stroke: gi.isCenter ? '#15803d' : '#fff',
+                      strokeWidth: gi.isCenter ? 3 : 1
+                    }),
+                    h('text', {
+                      x,
+                      y: y - 8,
+                      fontSize: 11,
+                      fill: 'white',
+                      textAnchor: 'middle',
+                      fontWeight: gi.isCenter ? 'bold' : 'normal'
+                    }, gi.type),
+                    h('text', {
+                      x,
+                      y: y + 8,
+                      fontSize: 12,
+                      fill: 'white',
+                      textAnchor: 'middle',
+                      fontWeight: gi.isCenter ? 'bold' : 'normal'
+                    }, gi.title.length > 20 ? gi.title.substring(0, 20) + '...' : gi.title)
+                  );
+                })
+              ),
+              h('div', { className: 'mt-4 text-sm text-gray-600 text-center' },
+                h('div', {}, '↑ Items that link TO this requirement'),
+                h('div', { className: 'mt-1' }, '↓ Items this requirement links TO')
+              )
+            );
+          };
+
+          const rootItems = items.filter(item => !item.parent_id);
+
+          if (!isConfigured) {
+            return h('div', { className: 'h-screen flex items-center justify-center bg-gray-50' },
+              h('div', { className: 'bg-white p-8 rounded-lg shadow-lg max-w-2xl w-full' },
+                h('img', { 
+                  src: './Fresh logo - Suisse.png', 
+                  alt: 'Fresh Consulting',
+                  className: 'h-12 mx-auto mb-6'
+                }),
+                h('h1', { className: 'text-3xl font-bold mb-6 text-center' }, 'Requirements Management System'),
+                h('p', { className: 'text-gray-600 mb-6' }, 'Connect to your Supabase database to get started. You\'ll need your project URL and anon key.'),
+                h('div', { className: 'space-y-4 mb-6' },
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Supabase Project URL'),
+                    h('input', {
+                      type: 'text',
+                      value: supabaseUrl,
+                      onChange: (e) => setSupabaseUrl(e.target.value),
+                      placeholder: 'https://your-project.supabase.co',
+                      className: 'w-full border rounded px-4 py-2'
+                    })
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Supabase Anon Key'),
+                    h('input', {
+                      type: 'password',
+                      value: supabaseKey,
+                      onChange: (e) => setSupabaseKey(e.target.value),
+                      placeholder: 'Your anon key',
+                      className: 'w-full border rounded px-4 py-2'
+                    })
+                  )
+                ),
+                h('div', { className: 'space-y-3' },
+                  h('button', {
+                    onClick: initializeSupabase,
+                    disabled: !supabaseUrl || !supabaseKey,
+                    className: 'w-full bg-fresh-600 text-white px-4 py-3 rounded hover:bg-fresh-700 disabled:bg-gray-300 font-semibold'
+                  }, 'Connect to Supabase'),
+                  h('button', {
+                    onClick: setupDatabase,
+                    className: 'w-full bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300'
+                  }, 'Show Database Setup Instructions')
+                ),
+                h('div', { className: 'mt-6 p-4 bg-fresh-50 rounded' },
+                  h('p', { className: 'text-sm text-fresh-900' },
+                    h('strong', {}, 'First time setup: '),
+                    'Click "Show Database Setup Instructions" to get the SQL commands you need to run in your Supabase SQL editor to create the required tables.'
+                  )
+                )
+              )
+            );
+          }
+
+          return h('div', { className: 'h-screen flex flex-col bg-gray-50' },
+            h('header', { className: 'bg-fresh-600 text-white p-4 shadow flex justify-between items-center' },
+              h('div', { className: 'flex items-center gap-4' },
+                h('img', { 
+                  src: './Fresh logo - Suisse.png', 
+                  alt: 'Fresh Consulting',
+                  className: 'h-8'
+                }),
+                h('h1', { className: 'text-2xl font-bold' }, 'Requirements Management'),
+                h(ProjectSelector)
+              ),
+              h('div', { className: 'flex gap-3 items-center' },
+                user && h('div', { className: 'flex items-center gap-2 bg-fresh-700 px-3 py-2 rounded' },
+                  user.user_metadata?.avatar_url && h('img', {
+                    src: user.user_metadata.avatar_url,
+                    alt: user.user_metadata?.full_name || user.email,
+                    className: 'w-8 h-8 rounded-full'
+                  }),
+                  h('span', { className: 'text-sm' }, user.user_metadata?.full_name || user.email)
+                ),
+                h('button', {
+                  onClick: () => setShowReports(!showReports),
+                  className: `px-4 py-2 rounded flex items-center gap-2 ${showReports ? 'bg-fresh-700' : 'bg-fresh-500 hover:bg-fresh-700'}`
+                }, h(TrendingUp, { size: 18 }), showReports ? ' Hide Reports' : ' Show Reports'),
+                h('button', {
+                  onClick: () => loadData(supabase),
+                  className: 'px-4 py-2 bg-fresh-500 rounded hover:bg-fresh-700 flex items-center gap-2'
+                }, '🔄'),
+                user && h('button', {
+                  onClick: handleSignOut,
+                  className: 'px-4 py-2 bg-fresh-700 rounded hover:bg-fresh-800 text-sm'
+                }, 'Sign Out')
+              )
+            ),
+            loading ? h('div', { className: 'flex-1 flex items-center justify-center' },
+              h('div', { className: 'text-center' },
+                h('div', { className: 'animate-spin rounded-full h-12 w-12 border-b-2 border-fresh-600 mx-auto mb-4' }),
+                h('p', { className: 'text-gray-600' }, 'Loading data...')
+              )
+            ) : !selectedProject ? h('div', { className: 'flex-1 flex items-center justify-center' },
+              h('div', { className: 'text-center' },
+                h(Filter, { size: 64, className: 'mx-auto mb-4 text-gray-300' }),
+                h('h2', { className: 'text-2xl font-bold text-gray-700 mb-2' }, 'No Project Selected'),
+                h('p', { className: 'text-gray-500 mb-4' }, projects.length === 0 ? 'Create your first project to get started' : 'Select a project from the dropdown above'),
+                projects.length === 0 && h('button', {
+                  onClick: () => setShowProjectForm(true),
+                  className: 'bg-fresh-600 text-white px-6 py-3 rounded-lg hover:bg-fresh-700 flex items-center gap-2 mx-auto'
+                }, h(Plus, { size: 20 }), ' Create First Project')
+              )
+            ) : showReports ? h('div', { className: 'p-6 overflow-y-auto h-full bg-gray-50' },
+              h('div', { className: 'max-w-7xl mx-auto' },
+                h('h2', { className: 'text-3xl font-bold mb-6' }, 'Project Reports & Analytics'),
+                h('div', { className: 'grid grid-cols-4 gap-4 mb-6' },
+                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
+                    h('div', { className: 'flex items-center justify-between' },
+                      h('div', {},
+                        h('p', { className: 'text-sm text-gray-500' }, 'Total Items'),
+                        h('p', { className: 'text-3xl font-bold' }, reportData.totalItems)
+                      ),
+                      h(BarChart3, { size: 32, className: 'text-fresh-500' })
+                    )
+                  ),
+                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
+                    h('div', { className: 'flex items-center justify-between' },
+                      h('div', {},
+                        h('p', { className: 'text-sm text-gray-500' }, 'Test Coverage'),
+                        h('p', { className: 'text-3xl font-bold' }, reportData.testCoverage + '%')
+                      ),
+                      h(PieChart, { size: 32, className: 'text-fresh-500' })
+                    )
+                  ),
+                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
+                    h('div', { className: 'flex items-center justify-between' },
+                      h('div', {},
+                        h('p', { className: 'text-sm text-gray-500' }, 'Traceability'),
+                        h('p', { className: 'text-3xl font-bold' }, reportData.traceabilityScore + '%')
+                      ),
+                      h(GitBranch, { size: 32, className: 'text-fresh-500' })
+                    )
+                  ),
+                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
+                    h('div', { className: 'flex items-center justify-between' },
+                      h('div', {},
+                        h('p', { className: 'text-sm text-gray-500' }, 'Relationships'),
+                        h('p', { className: 'text-3xl font-bold' }, reportData.totalRelationships)
+                      ),
+                      h(Link2, { size: 32, className: 'text-fresh-500' })
+                    )
+                  )
+                ),
+                h('div', { className: 'grid grid-cols-2 gap-6 mb-6' },
+                  h('div', { className: 'bg-white p-6 rounded-lg shadow' },
+                    h('h3', { className: 'text-xl font-semibold mb-4' }, 'Status Distribution'),
+                    h('div', { className: 'space-y-3' },
+                      Object.entries(reportData.statusDist).map(([status, count]) =>
+                        h('div', { key: status },
+                          h('div', { className: 'flex justify-between mb-1' },
+                            h('span', { className: 'capitalize' }, status),
+                            h('span', { className: 'font-semibold' }, count)
+                          ),
+                          h('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
+                            h('div', {
+                              className: `h-2 rounded-full ${
+                                status === 'approved' ? 'bg-green-500' :
+                                status === 'in-review' ? 'bg-yellow-500' :
+                                status === 'rejected' ? 'bg-red-500' : 'bg-gray-400'
+                              }`,
+                              style: { width: `${reportData.totalItems > 0 ? (count / reportData.totalItems * 100) : 0}%` }
+                            })
+                          )
+                        )
+                      )
+                    )
+                  ),
+                  h('div', { className: 'bg-white p-6 rounded-lg shadow' },
+                    h('h3', { className: 'text-xl font-semibold mb-4' }, 'Item Type Distribution'),
+                    h('div', { className: 'space-y-3' },
+                      Object.entries(reportData.typeDist).map(([type, count]) =>
+                        h('div', { key: type },
+                          h('div', { className: 'flex justify-between mb-1' },
+                            h('span', { className: 'capitalize' }, type),
+                            h('span', { className: 'font-semibold' }, count)
+                          ),
+                          h('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
+                            h('div', {
+                              className: `h-2 rounded-full ${
+                                type === 'epic' ? 'bg-purple-500' :
+                                type === 'requirement' ? 'bg-blue-500' :
+                                type === 'test-case' ? 'bg-green-500' : 'bg-red-500'
+                              }`,
+                              style: { width: `${reportData.totalItems > 0 ? (count / reportData.totalItems * 100) : 0}%` }
+                            })
+                          )
+                        )
+                      )
+                    )
+                  )
+                ),
+                h('div', { className: 'bg-white p-6 rounded-lg shadow mb-6' },
+                  h('h3', { className: 'text-xl font-semibold mb-4' }, 'Priority Distribution'),
+                  h('div', { className: 'grid grid-cols-4 gap-4' },
+                    Object.entries(reportData.priorityDist).map(([priority, count]) =>
+                      h('div', { key: priority, className: 'text-center' },
+                        h('div', {
+                          className: `text-4xl font-bold mb-2 ${
+                            priority === 'critical' ? 'text-red-600' :
+                            priority === 'high' ? 'text-orange-600' :
+                            priority === 'medium' ? 'text-yellow-600' : 'text-gray-600'
+                          }`
+                        }, count),
+                        h('div', { className: 'text-sm text-gray-500 capitalize' }, priority)
+                      )
+                    )
+                  )
+                ),
+                h('div', { className: 'bg-white p-6 rounded-lg shadow mb-6' },
+                  h('h3', { className: 'text-xl font-semibold mb-4' }, 'Status by Item Type'),
+                  h('div', { className: 'overflow-x-auto' },
+                    h('table', { className: 'w-full' },
+                      h('thead', {},
+                        h('tr', { className: 'border-b' },
+                          h('th', { className: 'text-left p-2' }, 'Type'),
+                          ...reportData.allStatuses.map(status => h('th', { key: status, className: 'text-center p-2 capitalize' }, status)),
+                          h('th', { className: 'text-center p-2' }, 'Total')
+                        )
+                      ),
+                      h('tbody', {},
+                        itemTypes.map(type =>
+                          h('tr', { key: type, className: 'border-b hover:bg-gray-50' },
+                            h('td', { className: 'p-2 capitalize font-medium' }, type),
+                            ...reportData.allStatuses.map(status => 
+                              h('td', { key: status, className: 'text-center p-2' }, reportData.statusByType[type][status] || 0)
+                            ),
+                            h('td', { className: 'text-center p-2 font-semibold' },
+                              Object.values(reportData.statusByType[type]).reduce((a, b) => a + b, 0)
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                ),
+                h('div', { className: 'bg-white p-6 rounded-lg shadow' },
+                  h('h3', { className: 'text-xl font-semibold mb-4' }, 'Owner Workload'),
+                  Object.keys(reportData.ownerWorkload).length > 0 ? 
+                    h('div', { className: 'space-y-3' },
+                      Object.entries(reportData.ownerWorkload).sort((a, b) => b[1] - a[1]).map(([owner, count]) =>
+                        h('div', { key: owner },
+                          h('div', { className: 'flex justify-between mb-1' },
+                            h('span', {}, owner),
+                            h('span', { className: 'font-semibold' }, `${count} items`)
+                          ),
+                          h('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
+                            h('div', {
+                              className: 'bg-fresh-500 h-2 rounded-full',
+                              style: { width: `${(count / reportData.totalItems * 100)}%` }
+                            })
+                          )
+                        )
+                      )
+                    ) : h('p', { className: 'text-gray-500 text-center py-4' }, 'No owners assigned yet')
+                )
+              )
+            ) : h('div', { className: 'flex-1 flex overflow-hidden' },
+              h('div', { className: 'w-1/3 bg-white border-r flex flex-col' },
+                h('div', { className: 'p-4 border-b space-y-3' },
+                  h(MyReviewsPanel),
+                  h('div', { className: 'flex gap-2' },
+                    h('button', {
+                      onClick: () => setShowNewItemForm(true),
+                      className: 'flex-1 bg-fresh-600 text-white px-3 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
+                    }, h(Plus, { size: 16 }), ' New Item'),
+                    h('button', {
+                      onClick: () => setShowRelationshipForm(true),
+                      className: 'flex-1 bg-fresh-600 text-white px-3 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
+                    }, h(Link2, { size: 16 }), ' Link Items')
+                  ),
+                  h('div', { className: 'flex gap-2' },
+                    h('div', { className: 'flex-1 relative' },
+                      h(Search, { size: 16, className: 'absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400' }),
+                      h('input', {
+                        type: 'text',
+                        placeholder: 'Search...',
+                        value: searchTerm,
+                        onChange: (e) => setSearchTerm(e.target.value),
+                        className: 'w-full border rounded pl-10 pr-3 py-2'
+                      })
+                    ),
+                    h('select', {
+                      value: filterType,
+                      onChange: (e) => setFilterType(e.target.value),
+                      className: 'border rounded px-3 py-2'
+                    },
+                      h('option', { value: 'all' }, 'All Types'),
+                      ...itemTypes.map(type => h('option', { key: type, value: type }, type))
+                    )
+                  )
+                ),
+                h('div', { className: 'flex-1 overflow-y-auto' },
+                  rootItems.length > 0 ?
+                    rootItems.map(item => renderTreeItem(item)) :
+                    h('div', { className: 'p-4 text-center text-gray-500' }, 'No items yet. Click "New Item" to create one.')
+                )
+              ),
+              h('div', { className: 'flex-1 bg-white overflow-y-auto' },
+                selectedItem ? h('div', { className: 'p-6' },
+                  h('div', { className: 'flex justify-between items-start mb-6' },
+                    h('div', { className: 'flex-1' },
+                      h('div', { className: 'flex items-center gap-3 mb-2' },
+                        h('span', {
+                          className: `px-3 py-1 text-sm rounded ${
+                            selectedItem.type === 'epic' ? 'bg-purple-100 text-purple-800' :
+                            selectedItem.type === 'requirement' ? 'bg-blue-100 text-blue-800' :
+                            selectedItem.type === 'test-case' ? 'bg-green-100 text-green-800' :
+                            'bg-red-100 text-red-800'
+                          }`
+                        }, selectedItem.type),
+                        h('span', { className: 'text-gray-500 text-sm' }, `ID: ${selectedItem.id} | Version: ${selectedItem.version}`)
+                      ),
+                      h('h2', { className: 'text-2xl font-bold' }, selectedItem.title)
+                    ),
+                    h('div', { className: 'flex gap-2' },
+                      h('button', {
+                        onClick: () => setEditingItem(selectedItem),
+                        className: 'p-2 text-blue-600 hover:bg-blue-50 rounded'
+                      }, h(Edit2, { size: 20 })),
+                      h('button', {
+                        onClick: () => handleDeleteItem(selectedItem.id),
+                        className: 'p-2 text-red-600 hover:bg-red-50 rounded'
+                      }, h(Trash2, { size: 20 }))
+                    )
+                  ),
+                  h('div', { className: 'grid grid-cols-2 gap-4 mb-6' },
+                    h('div', {},
+                      h('span', { className: 'text-sm text-gray-500' }, 'Status'),
+                      h('div', {
+                        className: `mt-1 px-3 py-1 rounded inline-block ${
+                          selectedItem.status === 'approved' ? 'bg-green-100 text-green-800' :
+                          selectedItem.status === 'in-review' ? 'bg-yellow-100 text-yellow-800' :
+                          selectedItem.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`
+                      }, selectedItem.status)
+                    ),
+                    h('div', {},
+                      h('span', { className: 'text-sm text-gray-500' }, 'Priority'),
+                      h('div', {
+                        className: `mt-1 px-3 py-1 rounded inline-block ${
+                          selectedItem.priority === 'critical' ? 'bg-red-100 text-red-800' :
+                          selectedItem.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                          selectedItem.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`
+                      }, selectedItem.priority)
+                    ),
+                    h('div', {},
+                      h('span', { className: 'text-sm text-gray-500' }, 'Owner'),
+                      h('p', { className: 'mt-1 font-medium' }, selectedItem.owner || 'Unassigned')
+                    )
+                  ),
+                  h('div', { className: 'mb-6' },
+                    h('h3', { className: 'font-semibold mb-2' }, 'Description'),
+                    h('p', { className: 'text-gray-700' }, selectedItem.description)
+                  ),
+
+                  selectedItem.reviewer_email && h('div', { className: 'mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded' },
+                    h('div', { className: 'flex justify-between items-start' },
+                      h('div', {},
+                        h('h3', { className: 'font-semibold text-blue-900 mb-1' }, '👤 Review Assignment'),
+                        h('p', { className: 'text-sm text-blue-800' }, `Assigned to: ${selectedItem.reviewer_email}`),
+                        selectedItem.status === 'approved' && h('p', { className: 'text-sm text-green-700 mt-2 font-medium' }, 
+                          '✓ This item has been approved'
+                        )
+                      ),
+                      user && user.email === selectedItem.reviewer_email && selectedItem.status !== 'approved' && 
+                        h('button', {
+                          onClick: () => handleApproveItem(selectedItem.id),
+                          className: 'bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-medium'
+                        }, '✓ Approve')
+                    )
+                  ),
+
+                  selectedItem.rationale && h('div', { className: 'mb-6' },
+                    h('h3', { className: 'font-semibold mb-2' }, 'Rationale'),
+                    h('p', { className: 'text-gray-700' }, selectedItem.rationale)
+                  ),
+
+                  selectedItem.test_method && h('div', { className: 'mb-6' },
+                    h('h3', { className: 'font-semibold mb-2' }, 'Test Method'),
+                    h('p', { className: 'text-gray-700' }, selectedItem.test_method)
+                  ),
+                  h('div', { className: 'mb-6' },
+                    h('div', { className: 'flex items-center justify-between mb-2' },
+                      h('h3', { className: 'font-semibold flex items-center gap-2' },
+                        h(GitBranch, { size: 18 }), ' Relationships'
+                      ),
+                      h('div', { className: 'flex gap-2' },
+                        h('button', {
+                          onClick: () => setShowGraphView(false),
+                          className: `px-3 py-1 text-sm rounded ${!showGraphView ? 'bg-fresh-600 text-white' : 'bg-gray-200'}`
+                        }, 'List'),
+                        h('button', {
+                          onClick: () => setShowGraphView(true),
+                          className: `px-3 py-1 text-sm rounded ${showGraphView ? 'bg-fresh-600 text-white' : 'bg-gray-200'}`
+                        }, 'Graph')
+                      )
+                    ),
+                    showGraphView ? 
+                      h(RelationshipGraph, { item: selectedItem }) :
+                      h('div', { className: 'space-y-2' },
+                        ...getItemRelationships(selectedItem.id).outgoing.map((rel, idx) => {
+                          const target = items.find(i => i.id === rel.to_id);
+                          return target ? h('div', { key: idx, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded group' },
+                            h('span', { className: 'text-sm text-gray-600' }, rel.type),
+                            h(ChevronRight, { size: 16, className: 'text-gray-400' }),
+                            h('span', { className: 'text-sm font-medium flex-1' }, target.title),
+                            h('button', {
+                              onClick: () => handleDeleteRelationship(rel.id),
+                              className: 'opacity-0 group-hover:opacity-100 text-red-600 hover:bg-red-50 p-1 rounded transition-opacity'
+                            }, h(Trash2, { size: 14 }))
+                          ) : null;
+                        }),
+                        ...getItemRelationships(selectedItem.id).incoming.map((rel, idx) => {
+                          const source = items.find(i => i.id === rel.from_id);
+                          return source ? h('div', { key: `in-${idx}`, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded group' },
+                            h('span', { className: 'text-sm font-medium' }, source.title),
+                            h(ChevronRight, { size: 16, className: 'text-gray-400' }),
+                            h('span', { className: 'text-sm text-gray-600' }, rel.type),
+                            h('span', { className: 'text-sm text-gray-600 flex-1' }, ' this item'),
+                            h('button', {
+                              onClick: () => handleDeleteRelationship(rel.id),
+                              className: 'opacity-0 group-hover:opacity-100 text-red-600 hover:bg-red-50 p-1 rounded transition-opacity'
+                            }, h(Trash2, { size: 14 }))
+                          ) : null;
+                        }),
+                        getItemRelationships(selectedItem.id).outgoing.length === 0 && 
+                        getItemRelationships(selectedItem.id).incoming.length === 0 &&
+                          h('p', { className: 'text-gray-500 text-sm' }, 'No relationships yet')
+                      )
+                  ),
+                  h('div', {},
+                    h('h3', { className: 'font-semibold mb-2 flex items-center gap-2' },
+                      h(MessageSquare, { size: 18 }),
+                      ` Comments (${comments.filter(c => c.item_id === selectedItem.id).length})`
+                    ),
+                    h('div', { className: 'space-y-3 mb-4' },
+                      ...comments.filter(c => c.item_id === selectedItem.id).map(comment =>
+                        h('div', { key: comment.id, className: 'p-3 bg-gray-50 rounded' },
+                          h('div', { className: 'flex justify-between items-start mb-1' },
+                            h('span', { className: 'font-medium text-sm' }, comment.author),
+                            h('span', { className: 'text-xs text-gray-500' }, new Date(comment.timestamp).toLocaleString())
+                          ),
+                          h('p', { className: 'text-sm text-gray-700' }, comment.text)
+                        )
+                      )
+                    ),
+                    h('div', { className: 'flex gap-2' },
+                      h('input', {
+                        type: 'text',
+                        value: newComment,
+                        onChange: (e) => setNewComment(e.target.value),
+                        placeholder: 'Add a comment...',
+                        className: 'flex-1 border rounded px-3 py-2',
+                        onKeyPress: (e) => e.key === 'Enter' && handleAddComment(selectedItem.id)
+                      }),
+                      h('button', {
+                        onClick: () => handleAddComment(selectedItem.id),
+                        className: 'bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700'
+                      }, 'Post')
+                    )
+                  ),
+
+                  h('div', { className: 'mt-6 pt-6 border-t' },
+                    h('h3', { className: 'font-semibold mb-3 text-gray-700' }, '📋 Audit History'),
+                    h(AuditLogViewer, { itemId: selectedItem.id })
+                  )
+                ) : h('div', { className: 'h-full flex items-center justify-center text-gray-400' },
+                  h('div', { className: 'text-center' },
+                    h(Filter, { size: 48, className: 'mx-auto mb-4' }),
+                    h('p', {}, 'Select an item to view details')
+                  )
+                )
+              )
+            ),
+            showNewItemForm && h(ItemForm, {
+              onSave: handleCreateItem,
+              onCancel: () => setShowNewItemForm(false)
+            }),
+            editingItem && h(ItemForm, {
+              item: editingItem,
+              onSave: handleUpdateItem,
+              onCancel: () => setEditingItem(null)
+            }),
+            showRelationshipForm && h(RelationshipForm),
+            showProjectForm && h(ProjectForm, {
+              onSave: handleCreateProject,
+              onCancel: () => setShowProjectForm(false)
+            }),
+            showAuthPrompt && !user && h(AuthPrompt)
+          );
         };
 
-        // Render the app
-        ReactDOM.render(<RequirementsManager />, document.getElementById('root'));
+        // Close project dropdown when clicking outside
+        if (typeof document !== 'undefined') {
+          document.addEventListener('click', (e) => {
+            if (!e.target.closest('.project-selector')) {
+              // Will be handled by React state
+            }
+          });
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(h(RequirementsManager));
+        }
+        
+        // Start the app
+        initApp();
     </script>
 </body>
 </html>
