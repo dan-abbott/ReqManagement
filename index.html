@@ -278,6 +278,8 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
           };
 
           const handleCreateItem = async (formData) => {
+                alert(`DEBUG CREATE ITEM:\nSelected Project: ${selectedProject?.name || 'NONE'}\nProject ID: ${selectedProject?.id || 'MISSING'}`);
+
             if (!supabase) return;
             
             try {
@@ -418,25 +420,28 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             }
           };
 
-          const handleCreateProject = async (projectData) => {
-            if (!supabase || !user) return;
-            
-            try {
-              const { data, error } = await supabase.from('projects').insert([projectData]).select();
-              
-              if (error) throw error;
-              
-              if (data && data[0]) {
-                setProjects([...projects, data[0]]);
-                setSelectedProject(data[0]);
-              }
-              
-              setShowProjectForm(false);
-            } catch (error) {
-              console.error('Error creating project:', error);
-              alert('Error creating project: ' + error.message);
-            }
-          };
+const handleCreateProject = async (projectData) => {
+  if (!supabase || !user) return;
+  
+  try {
+    alert('DEBUG: About to create project');
+    const { data, error } = await supabase.from('projects').insert([projectData]).select();
+    
+    if (error) throw error;
+    
+    if (data && data[0]) {
+      alert(`DEBUG: Project created with ID: ${data[0].id}`);
+      setProjects([...projects, data[0]]);
+      setSelectedProject(data[0]);
+      alert(`DEBUG: Selected project set to: ${JSON.stringify(data[0])}`);
+    }
+    
+    setShowProjectForm(false);
+  } catch (error) {
+    console.error('Error creating project:', error);
+    alert('Error creating project: ' + error.message);
+  }
+};
 
           const handleAddComment = async (itemId) => {
             if (!supabase || !newComment.trim() || !user) return;
