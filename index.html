@@ -217,6 +217,33 @@
             }
             setLoading(false);
           };
+          const createAuditLog = async (itemId, action, fieldName, oldValue, newValue) => {
+            if (!supabase || !user) return;
+            
+            try {
+              const logEntry = {
+                item_id: itemId,
+                user_email: user.email,
+                user_name: user.user_metadata?.full_name || user.email,
+                action: action,
+                field_name: fieldName,
+                old_value: oldValue ? String(oldValue) : null,
+                new_value: newValue ? String(newValue) : null,
+                timestamp: new Date().toISOString()
+              };
+              
+              const { data, error } = await supabase.from('audit_logs').insert([logEntry]).select();
+              
+              if (error) throw error;
+              
+              if (data && data[0]) {
+                setAuditLogs([data[0], ...auditLogs]);
+              }
+            } catch (error) {
+              console.error('Error creating audit log:', error);
+            }
+          };
+
 
           const setupDatabase = async () => {
             alert(`Please run these SQL commands in your Supabase SQL editor:
@@ -843,7 +870,10 @@ const handleCreateProject = async (projectData) => {
                   h('label', { className: 'block text-sm font-medium mb-2' }, 'Notes (Optional)'),
                   h('textarea', {
                     value: approvalNotes,
-                    onChange: (e) => setApprovalNotes(e.target.value),
+                    onChange: (e) => {
+                      e.persist();
+                      setApprovalNotes(e.target.value);
+                    },
                     placeholder: 'Add any comments about your decision...',
                     className: 'w-full border rounded px-3 py-2 h-24',
                     rows: 3
