@@ -118,6 +118,8 @@
           const [showApprovalModal, setShowApprovalModal] = useState(false);
           const [showAuditHistory, setShowAuditHistory] = useState(false);
           const [showDetailPanel, setShowDetailPanel] = useState(true);
+          const [draggedItem, setDraggedItem] = useState(null);
+          const [dropTarget, setDropTarget] = useState(null);
           const [approvalAction, setApprovalAction] = useState('approve');
           const [approvalNotes, setApprovalNotes] = useState('');
           
@@ -354,6 +356,37 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               }
             } catch (error) {
               console.error('Error refreshing item:', error);
+            }
+          };
+
+          
+          const handleUpdateParent = async (itemId, newParentId) => {
+            if (!supabase) return;
+            
+            try {
+              // Remove from old parent's children
+              const item = items.find(i => i.id === itemId);
+              if (item.parent_id) {
+                const oldParent = items.find(i => i.id === item.parent_id);
+                if (oldParent) {
+                  const updatedChildren = (oldParent.children || []).filter(id => id !== itemId);
+                  await supabase.from('items').update({ children: updatedChildren }).eq('id', item.parent_id);
+                }
+              }
+              
+              // Update item's parent
+              await supabase.from('items').update({ parent_id: newParentId }).eq('id', itemId);
+              
+              // Add to new parent's children
+              if (newParentId) {
+                const newParent = items.find(i => i.id === newParentId);
+                const updatedChildren = [...(newParent?.children || []), itemId];
+                await supabase.from('items').update({ children: updatedChildren }).eq('id', newParentId);
+              }
+              
+              await loadData(supabase);
+            } catch (error) {
+              console.error('Error updating parent:', error);
             }
           };
 
