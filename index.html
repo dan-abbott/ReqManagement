@@ -493,13 +493,13 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             try {
               const item = items.find(i => i.id === id);
               
-              // If reviewer is assigned, set status to in-review
-              if (updates.reviewer_email && updates.reviewer_email !== item.reviewer_email) {
-                updates = { ...updates, status: 'in-review' };
-              }
               // If item is approved and being edited, reset to draft
-              else if (item.status === 'approved' && updates && Object.keys(updates).length > 0) {
-                updates = { ...updates, status: 'draft' };
+              if (item.status === 'approved' && updates && Object.keys(updates).length > 0) {
+                // Don't change status if only reviewer_email is being updated
+                const isOnlyReviewerChange = Object.keys(updates).length === 1 && 'reviewer_email' in updates;
+                if (!isOnlyReviewerChange) {
+                  updates = { ...updates, status: 'draft' };
+                }
               }
               
               // Create audit logs for each changed field
@@ -1130,7 +1130,7 @@ const handleCreateProject = async (projectData) => {
             return h('div', { key: item.id },
               h('div', {
                 className: `flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 border-b ${isSelected ? 'bg-fresh-50 border-l-4 border-fresh-500' : ''} ${dropTarget === item.id ? 'bg-blue-100' : ''} ${draggedItem?.id === item.id ? 'opacity-50' : ''}`,
-                style: { paddingLeft: `${item.type === 'requirement' && item.level ? (requirementLevels.indexOf(item.level) * 20 + 8) : (level * 20 + 8)}px` },
+                style: { paddingLeft: `${item.type === 'requirement' ? (requirementLevels.indexOf(item.level || 'system') * 20 + 8) : (level * 20 + 8)}px` },
                 onClick: () => { setSelectedItem(item); setShowDetailPanel(true); },
                 onDragOver: (e) => {
                   e.preventDefault();
@@ -1176,7 +1176,7 @@ const handleCreateProject = async (projectData) => {
                     item.type === 'test-case' ? 'bg-green-100 text-green-800' :
                     'bg-red-100 text-red-800'
                   }`
-                }, item.type === 'requirement' && item.level ? `${item.type} (${item.level})` : item.type),
+                }, item.type === 'requirement' ? `${item.type} (${item.level || 'system'})` : item.type),
                 h('div', { className: 'flex-1' },
                       h('div', { className: 'font-medium' }, item.title),
                       !showDetailPanel && item.description && h('div', { className: 'text-sm text-gray-600 mt-1' }, item.description)
@@ -1964,6 +1964,13 @@ const handleCreateProject = async (projectData) => {
                         className: 'p-2 text-gray-400 hover:bg-gray-50 rounded',
                         title: 'Close'
                       }, h(X, { size: 20 })),
+                      selectedItem.reviewer_email && (selectedItem.status === 'draft' || selectedItem.status === 'rejected') && h('button', {
+                        onClick: async () => {
+                          await handleUpdateItem(selectedItem.id, { status: 'in-review' });
+                        },
+                        className: 'px-3 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm font-medium',
+                        title: 'Send to reviewer'
+                      }, '📤 Send for Review'),
                       h('button', {
                         onClick: () => setEditingItem(selectedItem),
                         className: 'p-2 text-blue-600 hover:bg-blue-50 rounded'
