@@ -117,6 +117,7 @@
           const [showGraphView, setShowGraphView] = useState(false);
           const [showApprovalModal, setShowApprovalModal] = useState(false);
           const [showAuditHistory, setShowAuditHistory] = useState(false);
+          const [showDetailPanel, setShowDetailPanel] = useState(true);
           const [approvalAction, setApprovalAction] = useState('approve');
           const [approvalNotes, setApprovalNotes] = useState('');
           
@@ -228,7 +229,8 @@
                 setProjects(projectsRes.data);
                 // Auto-select first project if none selected
                 // Only auto-select on initial load, not when refreshing data
-                if (!selectedProject && projectsRes.data.length > 0 && items.length === 0) {
+                // Never auto-select project
+                if (false) {
                   setSelectedProject(projectsRes.data[0]);
                 }
               }
@@ -1027,7 +1029,7 @@ const handleCreateProject = async (projectData) => {
                   h('div', { 
                     key: item.id, 
                     className: 'flex items-center justify-between bg-white p-2 rounded cursor-pointer hover:bg-gray-50',
-                    onClick: () => setSelectedItem(item)
+                    onClick: () => { setSelectedItem(item); setShowDetailPanel(true); }
                   },
                     h('span', { className: 'text-sm font-medium' }, item.title),
                     h('span', { className: 'text-xs text-gray-500' }, item.type)
@@ -1061,8 +1063,8 @@ const handleCreateProject = async (projectData) => {
             return h('div', { key: item.id },
               h('div', {
                 className: `flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-fresh-50 border-l-4 border-fresh-500' : ''}`,
-                style: { paddingLeft: `${level * 20 + 8}px` },
-                onClick: () => setSelectedItem(item)
+                style: { paddingLeft: `${level * 20 + 8 + (item.type === 'requirement' && item.level ? requirementLevels.indexOf(item.level) * 15 : 0)}px` },
+                onClick: () => { setSelectedItem(item); setShowDetailPanel(true); }
               },
                 hasChildren && h('button', { 
                   onClick: (e) => { e.stopPropagation(); toggleExpand(item.id); },
@@ -1077,7 +1079,10 @@ const handleCreateProject = async (projectData) => {
                     'bg-red-100 text-red-800'
                   }`
                 }, item.type === 'requirement' && item.level ? `${item.type} (${item.level})` : item.type),
-                h('span', { className: 'flex-1 font-medium text-sm' }, item.title),
+                h('div', { className: 'flex-1' },
+                      h('div', { className: 'font-medium' }, item.title),
+                      !showDetailPanel && item.description && h('div', { className: 'text-sm text-gray-600 mt-1' }, item.description)
+                    ),
                 h('span', {
                   className: `px-2 py-1 text-xs rounded ${
                     item.priority === 'critical' ? 'bg-red-100 text-red-800' :
@@ -1798,7 +1803,7 @@ const handleCreateProject = async (projectData) => {
                 )
               )
             ) : h('div', { className: 'flex-1 flex overflow-hidden' },
-              h('div', { className: 'w-1/3 bg-white border-r flex flex-col' },
+              h('div', { className: `${showDetailPanel && selectedItem ? 'w-1/3' : 'w-full'} bg-white border-r flex flex-col` },
                 h('div', { className: 'p-4 border-b space-y-3' },
                   h(MyReviewsPanel),
                   h('div', { className: 'flex gap-2' },
@@ -1838,8 +1843,8 @@ const handleCreateProject = async (projectData) => {
                     h('div', { className: 'p-4 text-center text-gray-500' }, 'No items yet. Click "New Item" to create one.')
                 )
               ),
-              h('div', { className: 'flex-1 bg-white overflow-y-auto' },
-                selectedItem ? h('div', { className: 'p-6' },
+              selectedItem && showDetailPanel && h('div', { className: 'flex-1 bg-white overflow-y-auto' },
+                h('div', { className: 'p-6' },
                   h('div', { className: 'flex justify-between items-start mb-6' },
                     h('div', { className: 'flex-1' },
                       h('div', { className: 'flex items-center gap-3 mb-2' },
@@ -1856,6 +1861,11 @@ const handleCreateProject = async (projectData) => {
                       h('h2', { className: 'text-2xl font-bold' }, selectedItem.title)
                     ),
                     h('div', { className: 'flex gap-2' },
+                      h('button', {
+                        onClick: () => { setShowDetailPanel(false); setSelectedItem(null); },
+                        className: 'p-2 text-gray-400 hover:bg-gray-50 rounded',
+                        title: 'Close'
+                      }, h(X, { size: 20 })),
                       h('button', {
                         onClick: () => setEditingItem(selectedItem),
                         className: 'p-2 text-blue-600 hover:bg-blue-50 rounded'
@@ -2022,11 +2032,12 @@ const handleCreateProject = async (projectData) => {
                     h('h3', { className: 'font-semibold mb-3 text-gray-700' }, '📋 Audit History'),
                     h(AuditLogViewer, { itemId: selectedItem.id })
                   )
-                ) : h('div', { className: 'h-full flex items-center justify-center text-gray-400' },
-                  h('div', { className: 'text-center' },
-                    h(Filter, { size: 48, className: 'mx-auto mb-4' }),
-                    h('p', {}, 'Select an item to view details')
-                  )
+                )
+              ),
+              !selectedItem && h('div', { className: 'flex-1 bg-white flex items-center justify-center' },
+                h('div', { className: 'text-center text-gray-400' },
+                  h(Filter, { size: 48, className: 'mx-auto mb-4' }),
+                  h('p', {}, 'Select an item to view details')
                 )
               )
             ),
