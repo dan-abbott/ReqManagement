@@ -535,6 +535,9 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
                   : item
               ));
               setEditingItem(null);
+              
+              // IMPROVEMENT #3: Refresh the detail panel after editing to show changes immediately
+              await refreshSelectedItem();
             } catch (error) {
               console.error('Error updating item:', error);
               alert('Error updating item: ' + error.message);
@@ -2210,9 +2213,24 @@ const handleCreateProject = async (projectData) => {
                     h('p', { className: 'text-gray-700' }, selectedItem.rationale)
                   ),
 
+                  // IMPROVEMENT #1: Make test_method URLs clickable
                   selectedItem.test_method && h('div', { className: 'mb-6' },
                     h('h3', { className: 'font-semibold mb-2' }, 'Test Method'),
-                    h('p', { className: 'text-gray-700' }, selectedItem.test_method)
+                    // Check if test_method is a URL and make it clickable
+                    (() => {
+                      const isUrl = selectedItem.test_method.match(/^https?:\/\//);
+                      return isUrl 
+                        ? h('a', { 
+                            href: selectedItem.test_method, 
+                            target: '_blank',
+                            rel: 'noopener noreferrer',
+                            className: 'text-blue-600 hover:text-blue-800 underline flex items-center gap-2'
+                          }, 
+                          '🔗 ', selectedItem.test_method,
+                          h('span', { className: 'text-xs text-gray-500' }, '(opens in new tab)')
+                        )
+                        : h('p', { className: 'text-gray-700 whitespace-pre-wrap' }, selectedItem.test_method);
+                    })()
                   ),
                   h('div', { className: 'mb-6' },
                     h('div', { className: 'flex items-center justify-between mb-2' },
@@ -2232,13 +2250,21 @@ const handleCreateProject = async (projectData) => {
                     ),
                     showGraphView ? 
                       h(RelationshipGraph, { item: selectedItem }) :
+                      // IMPROVEMENT #2: Make relationship items clickable for navigation
                       h('div', { className: 'space-y-2' },
                         ...getItemRelationships(selectedItem.id).outgoing.map((rel, idx) => {
                           const target = items.find(i => i.id === rel.to_id);
                           return target ? h('div', { key: idx, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded group' },
                             h('span', { className: 'text-sm text-gray-600' }, rel.type),
                             h(ChevronRight, { size: 16, className: 'text-gray-400' }),
-                            h('span', { className: 'text-sm font-medium flex-1' }, target.title),
+                            // Make the target item clickable to navigate to it
+                            h('button', {
+                              onClick: () => {
+                                setSelectedItem(target);
+                                setShowDetailPanel(true);
+                              },
+                              className: 'text-sm font-medium flex-1 text-left hover:text-blue-600 hover:underline'
+                            }, target.title),
                             h('button', {
                               onClick: () => handleDeleteRelationship(rel.id),
                               className: 'opacity-0 group-hover:opacity-100 text-red-600 hover:bg-red-50 p-1 rounded transition-opacity'
@@ -2248,7 +2274,14 @@ const handleCreateProject = async (projectData) => {
                         ...getItemRelationships(selectedItem.id).incoming.map((rel, idx) => {
                           const source = items.find(i => i.id === rel.from_id);
                           return source ? h('div', { key: `in-${idx}`, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded group' },
-                            h('span', { className: 'text-sm font-medium' }, source.title),
+                            // Make the source item clickable to navigate to it
+                            h('button', {
+                              onClick: () => {
+                                setSelectedItem(source);
+                                setShowDetailPanel(true);
+                              },
+                              className: 'text-sm font-medium hover:text-blue-600 hover:underline'
+                            }, source.title),
                             h(ChevronRight, { size: 16, className: 'text-gray-400' }),
                             h('span', { className: 'text-sm text-gray-600' }, rel.type),
                             h('span', { className: 'text-sm text-gray-600 flex-1' }, ' this item'),
