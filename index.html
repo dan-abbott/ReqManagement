@@ -1392,7 +1392,8 @@ const handleCreateProject = async (projectData) => {
             return h('div', { key: item.id },
               h('div', {
                 className: `flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 border-b ${isSelected ? 'bg-fresh-50 border-l-4 border-fresh-500' : ''} ${dropTarget === item.id ? 'bg-blue-100' : ''} ${draggedItem?.id === item.id ? 'opacity-50' : ''}`,
-                style: { paddingLeft: `${item.type === 'requirement' ? (requirementLevels.indexOf(item.level || 'system') * 20 + 8) : (level * 20 + 8)}px` },
+                // Indent requirements one level deeper than epics to show they nest conceptually within the organizational structure
+                style: { paddingLeft: `${item.type === 'requirement' ? ((requirementLevels.indexOf(item.level || 'system') + 1) * 20 + 8) : (level * 20 + 8)}px` },
                 onClick: () => { setSelectedItem(item); setShowDetailPanel(true); },
                 onDragOver: (e) => {
                   e.preventDefault();
