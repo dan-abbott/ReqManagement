@@ -111,6 +111,7 @@
           const [newComment, setNewComment] = useState('');
           const [expandedItems, setExpandedItems] = useState(new Set([1]));
           const [filterType, setFilterType] = useState('all');
+          const [filterStatus, setFilterStatus] = useState('all');
           const [searchTerm, setSearchTerm] = useState('');
           const [showRelationshipForm, setShowRelationshipForm] = useState(false);
           const [showReports, setShowReports] = useState(false);
@@ -339,6 +340,50 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               else next.add(id);
               return next;
             });
+          };
+
+          const collapseAll = () => {
+            // Collapse everything - clear the expanded items set
+            setExpandedItems(new Set());
+          };
+
+          const expandToLevel = (targetLevel) => {
+            // Expand all items down to and including the target requirement level
+            const newExpandedItems = new Set();
+            
+            // Helper function to determine if an item should be expanded based on target level
+            const shouldExpand = (item) => {
+              // Always expand epics and non-requirement types if they have children
+              if (item.type !== 'requirement') {
+                return item.children && item.children.length > 0;
+              }
+              
+              // For requirements, check if this level is at or above the target level
+              const itemLevel = requirementLevels.indexOf(item.level || 'system');
+              const targetLevelIndex = requirementLevels.indexOf(targetLevel);
+              
+              // Expand if this requirement is at or above the target level and has children
+              return itemLevel <= targetLevelIndex && item.children && item.children.length > 0;
+            };
+            
+            // Recursively process items to determine what should be expanded
+            const processItem = (item) => {
+              if (shouldExpand(item)) {
+                newExpandedItems.add(item.id);
+                // Recursively process children
+                if (item.children) {
+                  item.children.forEach(childId => {
+                    const childItem = items.find(i => i.id === childId);
+                    if (childItem) processItem(childItem);
+                  });
+                }
+              }
+            };
+            
+            // Start with root items
+            items.filter(item => !item.parent_id).forEach(processItem);
+            
+            setExpandedItems(newExpandedItems);
           };
 
           
@@ -1375,12 +1420,13 @@ const handleCreateProject = async (projectData) => {
             return items.filter(item => {
               const matchesProject = !selectedProject || item.project_id === selectedProject.id;
               const matchesType = filterType === 'all' || item.type === filterType;
+              const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
               const matchesSearch = searchTerm === '' || 
                 item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
-              return matchesProject && matchesType && matchesSearch;
+              return matchesProject && matchesType && matchesStatus && matchesSearch;
             });
-          }, [items, selectedProject, filterType, searchTerm]);
+          }, [items, selectedProject, filterType, filterStatus, searchTerm]);
 
           const renderTreeItem = (item, level = 0) => {
             const hasChildren = item.children && item.children.length > 0;
@@ -2259,11 +2305,56 @@ const handleCreateProject = async (projectData) => {
                     ),
                     h('select', {
                       value: filterType,
-                      onChange: (e) => setFilterType(e.target.value),
+                      onChange: (e) => {
+                        setFilterType(e.target.value);
+                        // Reset status filter when type changes
+                        setFilterStatus('all');
+                      },
                       className: 'border rounded px-3 py-2'
                     },
                       h('option', { value: 'all' }, 'All Types'),
                       ...itemTypes.map(type => h('option', { key: type, value: type }, type))
+                    ),
+                    h('select', {
+                      value: filterStatus,
+                      onChange: (e) => setFilterStatus(e.target.value),
+                      className: 'border rounded px-3 py-2'
+                    },
+                      h('option', { value: 'all' }, 'All Statuses'),
+                      // Show relevant statuses based on selected type
+                      ...(filterType === 'all' 
+                        ? // If showing all types, show all possible statuses
+                          [...new Set(Object.values(statuses).flat())].map(status => 
+                            h('option', { key: status, value: status }, status)
+                          )
+                        : // If a specific type is selected, show only its statuses
+                          (statuses[filterType] || []).map(status => 
+                            h('option', { key: status, value: status }, status)
+                          )
+                      )
+                    )
+                  ),
+                  h('div', { className: 'flex gap-2' },
+                    h('button', {
+                      onClick: collapseAll,
+                      className: 'flex-1 bg-gray-600 text-white px-3 py-2 rounded hover:bg-gray-700 text-sm'
+                    }, 'Collapse All'),
+                    h('select', {
+                      onChange: (e) => {
+                        if (e.target.value) {
+                          expandToLevel(e.target.value);
+                          e.target.value = ''; // Reset dropdown
+                        }
+                      },
+                      defaultValue: '',
+                      className: 'flex-1 border rounded px-3 py-2 text-sm bg-white'
+                    },
+                      h('option', { value: '', disabled: true }, 'Expand to...'),
+                      ...requirementLevels.map(level => 
+                        h('option', { key: level, value: level }, 
+                          level.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('-')
+                        )
+                      )
                     )
                   )
                 ),
