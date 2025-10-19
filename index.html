@@ -567,7 +567,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               } else if (action === 'pass') {
                 newStatus = 'passed';
               } else if (action === 'fail') {
-                newStatus = 'ready-for-test'; // Failed tests return to ready-for-test for re-execution
+                newStatus = 'failed'; // Failed tests get failed status for visibility
               }
               
               await createAuditLog(itemId, action, 'status', item.status, newStatus);
@@ -2075,6 +2075,14 @@ const handleCreateProject = async (projectData) => {
                         className: 'px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium',
                         title: 'Mark as ready for testing'
                       }, '🧪 Ready for Test'),
+                      selectedItem.type === 'test-case' && selectedItem.status === 'failed' && h('button', {
+                        onClick: async () => {
+                          await handleUpdateItem(selectedItem.id, { status: 'ready-for-test' });
+                          await refreshSelectedItem();
+                        },
+                        className: 'px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium',
+                        title: 'Bug fixed - ready to re-test'
+                      }, '🔄 Ready for Re-test'),
                       h('button', {
                         onClick: () => setEditingItem(selectedItem),
                         className: 'p-2 text-blue-600 hover:bg-blue-50 rounded'
@@ -2188,6 +2196,13 @@ const handleCreateProject = async (projectData) => {
 
                   selectedItem.status === 'passed' && h('div', { className: 'mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded' },
                     h('p', { className: 'text-sm text-green-700 font-medium' }, '✓ This test has passed')
+                  ),
+
+                  selectedItem.status === 'failed' && h('div', { className: 'mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded' },
+                    h('div', {},
+                      h('p', { className: 'text-sm text-red-700 font-medium mb-2' }, '✗ This test has failed'),
+                      h('p', { className: 'text-sm text-red-600' }, 'Review the failure notes in the audit history below. Once the bug is fixed, click "Ready for Re-test" to execute this test again.')
+                    )
                   ),
 
                   selectedItem.rationale && h('div', { className: 'mb-6' },
