@@ -365,29 +365,62 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             if (!supabase) return;
             
             try {
-              // Remove from old parent's children
-              const item = items.find(i => i.id === itemId);
-              if (item.parent_id) {
-                const oldParent = items.find(i => i.id === item.parent_id);
+              // Get fresh data from database to ensure we have current state
+              const { data: currentItem } = await supabase
+                .from('items')
+                .select('*')
+                .eq('id', itemId)
+                .single();
+              
+              if (!currentItem) return;
+              
+              // Remove from old parent's children array
+              if (currentItem.parent_id) {
+                const { data: oldParent } = await supabase
+                  .from('items')
+                  .select('*')
+                  .eq('id', currentItem.parent_id)
+                  .single();
+                
                 if (oldParent) {
                   const updatedChildren = (oldParent.children || []).filter(id => id !== itemId);
-                  await supabase.from('items').update({ children: updatedChildren }).eq('id', item.parent_id);
+                  await supabase
+                    .from('items')
+                    .update({ children: updatedChildren })
+                    .eq('id', currentItem.parent_id);
                 }
               }
               
-              // Update item's parent
-              await supabase.from('items').update({ parent_id: newParentId }).eq('id', itemId);
+              // Update item's parent_id
+              await supabase
+                .from('items')
+                .update({ parent_id: newParentId })
+                .eq('id', itemId);
               
-              // Add to new parent's children
+              // Add to new parent's children array
               if (newParentId) {
-                const newParent = items.find(i => i.id === newParentId);
-                const updatedChildren = [...(newParent?.children || []), itemId];
-                await supabase.from('items').update({ children: updatedChildren }).eq('id', newParentId);
+                const { data: newParent } = await supabase
+                  .from('items')
+                  .select('*')
+                  .eq('id', newParentId)
+                  .single();
+                
+                if (newParent) {
+                  const updatedChildren = [...(newParent.children || []), itemId];
+                  await supabase
+                    .from('items')
+                    .update({ children: updatedChildren })
+                    .eq('id', newParentId);
+                }
               }
               
+              // Reload all data to get fresh state
               await loadData(supabase);
+              
+              console.log('Parent updated successfully');
             } catch (error) {
               console.error('Error updating parent:', error);
+              alert('Error updating parent. Please refresh the page.');
             }
           };
 
