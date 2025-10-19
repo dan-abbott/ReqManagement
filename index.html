@@ -1083,8 +1083,7 @@ const handleCreateProject = async (projectData) => {
             
             const itemsNeedingMyReview = items.filter(item => 
               item.reviewer_email === user.email && 
-              item.status !== 'approved' && 
-              item.status !== 'rejected' &&
+              item.status === 'in-review' &&
               selectedProject && item.project_id === selectedProject.id
             );
 
