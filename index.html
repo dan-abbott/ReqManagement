@@ -1063,7 +1063,7 @@ const handleCreateProject = async (projectData) => {
             return h('div', { key: item.id },
               h('div', {
                 className: `flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-fresh-50 border-l-4 border-fresh-500' : ''}`,
-                style: { paddingLeft: `${level * 20 + 8 + (item.type === 'requirement' && item.level ? requirementLevels.indexOf(item.level) * 15 : 0)}px` },
+                style: { paddingLeft: `${item.type === 'requirement' && item.level ? (requirementLevels.indexOf(item.level) * 20 + 8) : (level * 20 + 8)}px` },
                 onClick: () => { setSelectedItem(item); setShowDetailPanel(true); }
               },
                 hasChildren && h('button', { 
