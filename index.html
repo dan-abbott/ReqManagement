@@ -128,7 +128,7 @@
           const statuses = {
             epic: ['draft', 'in-review', 'approved', 'rejected'],
             requirement: ['draft', 'in-review', 'approved', 'rejected'],
-            'test-case': ['not-tested', 'pass', 'fail'],
+            'test-case': ['draft', 'ready-for-test', 'passed', 'failed'],
             defect: ['not-started', 'in-process', 'resolved', 'backlog']
           };
           const priorities = ['low', 'medium', 'high', 'critical'];
@@ -543,17 +543,35 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             if (!supabase || !user) return;
             
             const item = items.find(i => i.id === itemId);
-            if (!item || item.reviewer_email !== user.email) {
-              alert('Only the assigned reviewer can approve or reject this item.');
+            if (!item) return;
+            
+            // Check if user is authorized (reviewer for requirements, tester for test cases)
+            const isAuthorized = (item.type === 'test-case' && item.tester_email === user.email) ||
+                                 (item.type !== 'test-case' && item.reviewer_email === user.email);
+            
+            if (!isAuthorized) {
+              const role = item.type === 'test-case' ? 'tester' : 'reviewer';
+              alert(`Only the assigned ${role} can perform this action.`);
               return;
             }
             
             try {
-              const newStatus = action === 'approve' ? 'approved' : 'draft'; // Rejected items return to draft for revision
+              // Determine new status based on action
+              let newStatus;
+              if (action === 'approve') {
+                newStatus = 'approved';
+              } else if (action === 'reject') {
+                newStatus = 'draft'; // Rejected items return to draft for revision
+              } else if (action === 'pass') {
+                newStatus = 'passed';
+              } else if (action === 'fail') {
+                newStatus = 'ready-for-test'; // Failed tests return to ready-for-test for re-execution
+              }
               
               await createAuditLog(itemId, action, 'status', item.status, newStatus);
               if (notes) {
-                await createAuditLog(itemId, 'review_notes', null, null, notes);
+                const noteType = item.type === 'test-case' ? 'test_notes' : 'review_notes';
+                await createAuditLog(itemId, noteType, null, null, notes);
               }
               
               const { error } = await supabase
@@ -577,8 +595,8 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
               setShowApprovalModal(false);
               setApprovalNotes('');
             } catch (error) {
-              console.error('Error processing review:', error);
-              alert('Error processing review: ' + error.message);
+              console.error('Error processing action:', error);
+              alert('Error processing action: ' + error.message);
             }
           };
 
@@ -1008,6 +1026,17 @@ const handleCreateProject = async (projectData) => {
             if (!selectedItem) return null;
             
             const notesRef = useRef(null);
+            const isTestCase = selectedItem.type === 'test-case';
+            
+            // Determine labels based on item type
+            const modalTitle = isTestCase ? 'Test Execution Result' : 'Review Item';
+            const action1 = isTestCase ? 'pass' : 'approve';
+            const action2 = isTestCase ? 'fail' : 'reject';
+            const action1Label = isTestCase ? 'Pass' : 'Approve';
+            const action2Label = isTestCase ? 'Fail' : 'Reject';
+            const notesPlaceholder = isTestCase 
+              ? 'Add test execution notes, observations, or issues found...'
+              : 'Add any comments about your decision...';
             
             // Update state from ref on submit
             const handleSubmit = () => {
@@ -1017,35 +1046,35 @@ const handleCreateProject = async (projectData) => {
 
             return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
               h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
-                h('h3', { className: 'text-xl font-bold mb-4' }, 'Review Item'),
+                h('h3', { className: 'text-xl font-bold mb-4' }, modalTitle),
                 h('div', { className: 'mb-4 p-3 bg-gray-50 rounded' },
                   h('p', { className: 'text-sm text-gray-600 mb-1' }, 'Item'),
                   h('p', { className: 'font-medium' }, selectedItem.title)
                 ),
                 h('div', { className: 'mb-4' },
-                  h('label', { className: 'block text-sm font-medium mb-2' }, 'Action'),
+                  h('label', { className: 'block text-sm font-medium mb-2' }, 'Result'),
                   h('div', { className: 'flex gap-3' },
                     h('button', {
-                      onClick: () => setApprovalAction('approve'),
+                      onClick: () => setApprovalAction(action1),
                       className: `flex-1 p-3 rounded border-2 flex items-center justify-center gap-2 ${
-                        approvalAction === 'approve' 
+                        approvalAction === action1
                           ? 'border-green-500 bg-green-50 text-green-700' 
                           : 'border-gray-300 hover:border-green-300'
                       }`
                     },
                       h(CheckCircle, { size: 20 }),
-                      ' Approve'
+                      ` ${action1Label}`
                     ),
                     h('button', {
-                      onClick: () => setApprovalAction('reject'),
+                      onClick: () => setApprovalAction(action2),
                       className: `flex-1 p-3 rounded border-2 flex items-center justify-center gap-2 ${
-                        approvalAction === 'reject' 
+                        approvalAction === action2
                           ? 'border-red-500 bg-red-50 text-red-700' 
                           : 'border-gray-300 hover:border-red-300'
                       }`
                     },
                       h(XCircle, { size: 20 }),
-                      ' Reject'
+                      ` ${action2Label}`
                     )
                   )
                 ),
@@ -1054,7 +1083,7 @@ const handleCreateProject = async (projectData) => {
                   h('textarea', {
                     ref: notesRef,
                     defaultValue: approvalNotes,
-                    placeholder: 'Add any comments about your decision...',
+                    placeholder: notesPlaceholder,
                     className: 'w-full border rounded px-3 py-2 h-24',
                     rows: 3
                   })
@@ -1063,9 +1092,9 @@ const handleCreateProject = async (projectData) => {
                   h('button', {
                     onClick: handleSubmit,
                     className: `flex-1 px-4 py-2 rounded font-medium text-white ${
-                      approvalAction === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+                      approvalAction === action1 ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
                     }`
-                  }, `${approvalAction === 'approve' ? 'Approve' : 'Reject'} Item`),
+                  }, `${approvalAction === action1 ? action1Label : action2Label} Item`),
                   h('button', {
                     onClick: () => {
                       setShowApprovalModal(false);
@@ -1248,13 +1277,14 @@ const handleCreateProject = async (projectData) => {
               }
             }, [formData.type]);
 
-            // Get list of all users who have interacted with the system (for reviewer assignment)
+            // Get list of all users who have interacted with the system (for reviewer/tester assignment)
             const allUsers = useMemo(() => {
               const userEmails = new Set();
               comments.forEach(c => c.author_email && userEmails.add(c.author_email));
               items.forEach(i => {
                 if (i.owner) userEmails.add(i.owner);
                 if (i.reviewer_email) userEmails.add(i.reviewer_email);
+                if (i.tester_email) userEmails.add(i.tester_email);
               });
               if (user) userEmails.add(user.email);
               return Array.from(userEmails);
@@ -1366,14 +1396,22 @@ const handleCreateProject = async (projectData) => {
                       className: 'w-full border rounded px-3 py-2'
                     }, requirementLevels.map(lvl => h('option', { key: lvl, value: lvl }, lvl)))
                   ),
-                  (formData.type === 'requirement' || formData.type === 'epic') && h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Assign Reviewer (Optional)'),
+                  (formData.type === 'requirement' || formData.type === 'epic' || formData.type === 'test-case') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 
+                      formData.type === 'test-case' ? 'Assign Tester (Optional)' : 'Assign Reviewer (Optional)'
+                    ),
                     h('select', {
-                      value: formData.reviewer_email || '',
-                      onChange: (e) => setFormData({ ...formData, reviewer_email: e.target.value }),
+                      value: formData.type === 'test-case' ? (formData.tester_email || '') : (formData.reviewer_email || ''),
+                      onChange: (e) => {
+                        if (formData.type === 'test-case') {
+                          setFormData({ ...formData, tester_email: e.target.value });
+                        } else {
+                          setFormData({ ...formData, reviewer_email: e.target.value });
+                        }
+                      },
                       className: 'w-full border rounded px-3 py-2'
                     },
-                      h('option', { value: '' }, 'No reviewer assigned'),
+                      h('option', { value: '' }, formData.type === 'test-case' ? 'No tester assigned' : 'No reviewer assigned'),
                       ...allUsers.map(email => h('option', { key: email, value: email }, email))
                     )
                   ),
@@ -1970,13 +2008,20 @@ const handleCreateProject = async (projectData) => {
                         className: 'p-2 text-gray-400 hover:bg-gray-50 rounded',
                         title: 'Close'
                       }, h(X, { size: 20 })),
-                      selectedItem.reviewer_email && (selectedItem.status === 'draft' || selectedItem.status === 'rejected') && h('button', {
+                      selectedItem.type === 'requirement' && selectedItem.reviewer_email && (selectedItem.status === 'draft' || selectedItem.status === 'rejected') && h('button', {
                         onClick: async () => {
                           await handleUpdateItem(selectedItem.id, { status: 'in-review' });
                         },
                         className: 'px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium',
                         title: 'Send to reviewer'
                       }, '📤 Send for Review'),
+                      selectedItem.type === 'test-case' && selectedItem.tester_email && selectedItem.status === 'draft' && h('button', {
+                        onClick: async () => {
+                          await handleUpdateItem(selectedItem.id, { status: 'ready-for-test' });
+                        },
+                        className: 'px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium',
+                        title: 'Mark as ready for testing'
+                      }, '🧪 Ready for Test'),
                       h('button', {
                         onClick: () => setEditingItem(selectedItem),
                         className: 'p-2 text-blue-600 hover:bg-blue-50 rounded'
