@@ -125,6 +125,8 @@
           const [dropTarget, setDropTarget] = useState(null);
           const [approvalAction, setApprovalAction] = useState('approve');
           const [approvalNotes, setApprovalNotes] = useState('');
+          const [showImportModal, setShowImportModal] = useState(false);
+          const [importFile, setImportFile] = useState(null);
           
           const itemTypes = ['epic', 'requirement', 'test-case', 'defect'];
           const statuses = {
@@ -716,6 +718,179 @@ const handleCreateProject = async (projectData) => {
             }
           };
 
+          const downloadCSVTemplate = () => {
+            // Create a template CSV with headers and example rows
+            const headers = ['type', 'title', 'description', 'rationale', 'test_method', 'status', 'priority', 'owner', 'level', 'reviewer_email', 'tester_email'];
+            const exampleRows = [
+              ['requirement', 'System shall support user authentication', 'The system must authenticate users via username and password', 'Security requirement to protect user data', '', 'draft', 'high', 'john@example.com', 'system', 'jane@example.com', ''],
+              ['requirement', 'Login page shall timeout after 15 minutes', 'For security, idle sessions must timeout', 'Prevents unauthorized access to unattended sessions', '', 'draft', 'medium', 'john@example.com', 'sub-system', 'jane@example.com', ''],
+              ['test-case', 'Verify login with valid credentials', 'Test that user can log in with correct username and password', '', 'Manual test: Enter valid credentials and verify successful login', 'draft', 'high', 'sarah@example.com', '', '', 'sarah@example.com'],
+              ['epic', 'User Authentication Feature', 'Epic to group all authentication-related requirements', '', '', 'draft', 'high', 'john@example.com', '', '', '']
+            ];
+            
+            // Convert to CSV format
+            const csvContent = [
+              headers.join(','),
+              ...exampleRows.map(row => row.map(cell => {
+                // Escape cells that contain commas or quotes
+                if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                  return '"' + cell.replace(/"/g, '""') + '"';
+                }
+                return cell;
+              }).join(','))
+            ].join('\n');
+            
+            // Create download link
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'requirements_import_template.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          };
+
+          const handleImportCSV = async (file) => {
+            if (!file || !supabase || !selectedProject) return;
+            
+            try {
+              const text = await file.text();
+              const lines = text.split('\n').filter(line => line.trim());
+              
+              if (lines.length < 2) {
+                alert('CSV file is empty or invalid');
+                return;
+              }
+              
+              // Parse header
+              const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+              
+              // Parse rows
+              const rows = [];
+              for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                const values = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let j = 0; j < line.length; j++) {
+                  const char = line[j];
+                  
+                  if (char === '"') {
+                    if (inQuotes && line[j + 1] === '"') {
+                      current += '"';
+                      j++;
+                    } else {
+                      inQuotes = !inQuotes;
+                    }
+                  } else if (char === ',' && !inQuotes) {
+                    values.push(current.trim());
+                    current = '';
+                  } else {
+                    current += char;
+                  }
+                }
+                values.push(current.trim());
+                
+                if (values.length === headers.length) {
+                  const row = {};
+                  headers.forEach((header, idx) => {
+                    row[header] = values[idx];
+                  });
+                  rows.push(row);
+                }
+              }
+              
+              if (rows.length === 0) {
+                alert('No valid data rows found in CSV');
+                return;
+              }
+              
+              // Validate and import each row
+              let successCount = 0;
+              let errorCount = 0;
+              const errors = [];
+              
+              for (const row of rows) {
+                try {
+                  // Validate required fields
+                  if (!row.type || !row.title) {
+                    errors.push(`Row skipped: Missing type or title - "${row.title || 'untitled'}"`);
+                    errorCount++;
+                    continue;
+                  }
+                  
+                  // Validate type
+                  if (!itemTypes.includes(row.type)) {
+                    errors.push(`Row skipped: Invalid type "${row.type}" for "${row.title}"`);
+                    errorCount++;
+                    continue;
+                  }
+                  
+                  // Build item object
+                  const newItem = {
+                    project_id: selectedProject.id,
+                    type: row.type,
+                    title: row.title,
+                    description: row.description || '',
+                    status: row.status || 'draft',
+                    version: 1
+                  };
+                  
+                  // Add optional fields based on type
+                  if (row.priority) newItem.priority = row.priority;
+                  if (row.owner) newItem.owner = row.owner;
+                  if (row.rationale && row.type === 'requirement') newItem.rationale = row.rationale;
+                  if (row.test_method && row.type === 'test-case') newItem.test_method = row.test_method;
+                  if (row.level && row.type === 'requirement') newItem.level = row.level;
+                  if (row.reviewer_email && (row.type === 'requirement' || row.type === 'epic')) {
+                    newItem.reviewer_email = row.reviewer_email;
+                  }
+                  if (row.tester_email && row.type === 'test-case') {
+                    newItem.tester_email = row.tester_email;
+                  }
+                  
+                  // Insert into database
+                  const { data, error } = await supabase.from('items').insert([newItem]).select();
+                  
+                  if (error) throw error;
+                  
+                  if (data && data[0]) {
+                    setItems(prev => [...prev, data[0]]);
+                    await createAuditLog(data[0].id, 'create', null, null, `Imported ${data[0].type}: ${data[0].title}`);
+                    successCount++;
+                  }
+                } catch (error) {
+                  errors.push(`Error importing "${row.title}": ${error.message}`);
+                  errorCount++;
+                }
+              }
+              
+              // Show results
+              let message = `Import complete!\n\n`;
+              message += `✓ Successfully imported: ${successCount} items\n`;
+              if (errorCount > 0) {
+                message += `✗ Failed: ${errorCount} items\n\n`;
+                if (errors.length > 0) {
+                  message += `Errors:\n${errors.slice(0, 5).join('\n')}`;
+                  if (errors.length > 5) {
+                    message += `\n... and ${errors.length - 5} more errors`;
+                  }
+                }
+              }
+              
+              alert(message);
+              setShowImportModal(false);
+              setImportFile(null);
+              
+            } catch (error) {
+              console.error('Error importing CSV:', error);
+              alert('Error importing CSV: ' + error.message);
+            }
+          };
+
           const getItemRelationships = (itemId) => {
             return {
               outgoing: relationships.filter(r => r.from_id === itemId),
@@ -1268,7 +1443,8 @@ const handleCreateProject = async (projectData) => {
                       h('div', { className: 'font-medium' }, item.title),
                       !showDetailPanel && item.description && h('div', { className: 'text-sm text-gray-600 mt-1' }, item.description)
                     ),
-                h('span', {
+                // Hide status for epics since they're organizational containers
+                item.type !== 'epic' && h('span', {
                   className: `px-2 py-1 text-xs rounded ${
                     item.status === 'approved' || item.status === 'passed' ? 'bg-green-100 text-green-800' :
                     item.status === 'in-review' || item.status === 'ready-for-test' ? 'bg-yellow-100 text-yellow-800' :
@@ -1594,6 +1770,58 @@ const handleCreateProject = async (projectData) => {
                   }, 'Add Relationship'),
                   h('button', {
                     onClick: () => setShowRelationshipForm(false),
+                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
+                  }, 'Cancel')
+                )
+              )
+            );
+          };
+
+          const ImportCSVModal = () => {
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-lg' },
+                h('h3', { className: 'text-xl font-bold mb-4' }, 'Import Requirements from CSV'),
+                h('div', { className: 'mb-6' },
+                  h('div', { className: 'bg-blue-50 border-l-4 border-blue-500 p-4 mb-4' },
+                    h('p', { className: 'text-sm text-blue-800 mb-2' }, '📋 Import Instructions:'),
+                    h('ul', { className: 'text-sm text-blue-700 space-y-1 ml-4' },
+                      h('li', {}, '• Download the template to see the required format'),
+                      h('li', {}, '• Fill in your requirements data in the CSV'),
+                      h('li', {}, '• Required fields: type, title'),
+                      h('li', {}, '• Items will be imported to the current project'),
+                      h('li', {}, '• Valid types: epic, requirement, test-case, defect')
+                    )
+                  ),
+                  h('div', { className: 'mb-4' },
+                    h('button', {
+                      onClick: downloadCSVTemplate,
+                      className: 'w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2'
+                    }, '📥 Download CSV Template')
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Select CSV File to Import'),
+                    h('input', {
+                      type: 'file',
+                      accept: '.csv',
+                      onChange: (e) => setImportFile(e.target.files[0]),
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  importFile && h('p', { className: 'text-sm text-gray-600 mt-2' }, 
+                    `Selected: ${importFile.name}`
+                  )
+                ),
+                h('div', { className: 'flex gap-2' },
+                  h('button', {
+                    onClick: () => importFile && handleImportCSV(importFile),
+                    disabled: !importFile,
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:bg-gray-300'
+                  }, 'Import CSV'),
+                  h('button', {
+                    onClick: () => {
+                      setShowImportModal(false);
+                      setImportFile(null);
+                    },
                     className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
                   }, 'Cancel')
                 )
@@ -2008,6 +2236,13 @@ const handleCreateProject = async (projectData) => {
                       className: 'flex-1 bg-fresh-600 text-white px-3 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
                     }, h(Plus, { size: 16 }), ' New Item'),
                     h('button', {
+                      onClick: () => setShowImportModal(true),
+                      className: 'bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 flex items-center justify-center gap-2',
+                      title: 'Import requirements from CSV'
+                    }, '📥')
+                  ),
+                  h('div', { className: 'flex gap-2' },
+                    h('button', {
                       onClick: () => setShowRelationshipForm(true),
                       className: 'flex-1 bg-fresh-600 text-white px-3 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
                     }, h(Link2, { size: 16 }), ' Link Items')
@@ -2097,7 +2332,8 @@ const handleCreateProject = async (projectData) => {
                     )
                   ),
                   h('div', { className: 'grid grid-cols-2 gap-4 mb-6' },
-                    h('div', {},
+                    // Hide status for epics since they're organizational containers
+                    selectedItem.type !== 'epic' && h('div', {},
                       h('span', { className: 'text-sm text-gray-500' }, 'Status'),
                       h('div', {
                         className: `mt-1 px-3 py-1 rounded inline-block ${
@@ -2351,6 +2587,7 @@ const handleCreateProject = async (projectData) => {
               onCancel: () => setEditingItem(null)
             }),
             showRelationshipForm && h(RelationshipForm),
+            showImportModal && h(ImportCSVModal),
             showProjectForm && h(ProjectForm, {
               onSave: handleCreateProject,
               onCancel: () => setShowProjectForm(false)
