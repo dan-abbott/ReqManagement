@@ -493,11 +493,17 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             try {
               const item = items.find(i => i.id === id);
               
-              // If item is approved and being edited, reset to draft
+              // If item is approved and being edited, reset to draft only if content actually changed
               if (item.status === 'approved' && updates && Object.keys(updates).length > 0) {
-                // Don't change status if only reviewer_email is being updated
-                const isOnlyReviewerChange = Object.keys(updates).length === 1 && 'reviewer_email' in updates;
-                if (!isOnlyReviewerChange) {
+                // Check if any values actually changed
+                const hasRealChanges = Object.keys(updates).some(key => {
+                  // Skip reviewer_email - that doesn't count as content change
+                  if (key === 'reviewer_email') return false;
+                  // Check if the value actually differs
+                  return updates[key] !== item[key];
+                });
+                
+                if (hasRealChanges) {
                   updates = { ...updates, status: 'draft' };
                 }
               }
@@ -543,7 +549,7 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
             }
             
             try {
-              const newStatus = action === 'approve' ? 'approved' : 'rejected';
+              const newStatus = action === 'approve' ? 'approved' : 'draft'; // Rejected items return to draft for revision
               
               await createAuditLog(itemId, action, 'status', item.status, newStatus);
               if (notes) {
