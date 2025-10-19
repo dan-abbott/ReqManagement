@@ -129,6 +129,16 @@
           };
           const priorities = ['low', 'medium', 'high', 'critical'];
           const relationshipTypes = ['tests', 'depends-on', 'derives-from', 'relates-to'];
+          
+          const requirementLevels = [
+            'system',
+            'sub-system', 
+            'assembly',
+            'sub-assembly',
+            'component',
+            'sub-component',
+            'material'
+          ];
 
           useEffect(() => {
             if (DEV_SUPABASE_URL && DEV_SUPABASE_KEY && !supabase) {
@@ -889,6 +899,35 @@ const handleCreateProject = async (projectData) => {
           };
 
           
+          
+          const LevelConfirmModal = ({ suggestedLevel, currentLevel, onAccept, onReject, onClose }) => {
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]' },
+              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
+                h('h3', { className: 'text-xl font-bold mb-4' }, 'Requirement Level Suggestion'),
+                h('p', { className: 'mb-4 text-gray-700' }, 
+                  `The parent requirement is at "${currentLevel}". The derived requirement should typically be at "${suggestedLevel}".`
+                ),
+                h('p', { className: 'mb-6 text-gray-600' }, 
+                  'Which level would you like to use?'
+                ),
+                h('div', { className: 'flex gap-3' },
+                  h('button', {
+                    onClick: onAccept,
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 font-medium'
+                  }, `Use "${suggestedLevel}"`),
+                  h('button', {
+                    onClick: onReject,
+                    className: 'flex-1 bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 font-medium'
+                  }, `Keep "${formData.level || 'system'}"`),
+                  h('button', {
+                    onClick: onClose,
+                    className: 'bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
+                  }, 'Cancel')
+                )
+              )
+            );
+          };
+
           const ApprovalModal = () => {
             if (!selectedItem) return null;
             
@@ -1036,7 +1075,7 @@ const handleCreateProject = async (projectData) => {
                     item.type === 'test-case' ? 'bg-green-100 text-green-800' :
                     'bg-red-100 text-red-800'
                   }`
-                }, item.type),
+                }, item.type === 'requirement' && item.level ? `${item.type} (${item.level})` : item.type),
                 h('span', { className: 'flex-1 font-medium text-sm' }, item.title),
                 h('span', {
                   className: `px-2 py-1 text-xs rounded ${
@@ -1066,17 +1105,20 @@ const handleCreateProject = async (projectData) => {
               status: 'draft',
               priority: 'medium',
               owner: '',
+              level: 'system',
               parentId: selectedItem?.id || null,
             });
 
             const [selectedRelationships, setSelectedRelationships] = useState([]);
+            const [suggestedLevel, setSuggestedLevel] = useState(null);
+            const [showLevelConfirm, setShowLevelConfirm] = useState(false);
 
             const getFieldsForType = (type) => {
               switch(type) {
                 case 'epic':
                   return ['title', 'description'];
                 case 'requirement':
-                  return ['title', 'description', 'rationale', 'status', 'priority', 'owner'];
+                  return ['title', 'description', 'rationale', 'status', 'priority', 'owner', 'level'];
                 case 'test-case':
                   return ['title', 'description', 'test_method', 'status', 'owner'];
                 case 'defect':
@@ -1107,6 +1149,31 @@ const handleCreateProject = async (projectData) => {
               if (user) userEmails.add(user.email);
               return Array.from(userEmails);
             }, [comments, items, user]);
+
+            
+            const getNextLevel = (currentLevel) => {
+              const idx = requirementLevels.indexOf(currentLevel);
+              return idx >= 0 && idx < requirementLevels.length - 1 
+                ? requirementLevels[idx + 1] 
+                : currentLevel;
+            };
+
+            // Watch for derives-from relationships and suggest level
+            useEffect(() => {
+              if (formData.type !== 'requirement') return;
+              
+              const derivesFromRel = selectedRelationships.find(r => r.type === 'derives-from');
+              if (derivesFromRel) {
+                const parentItem = items.find(i => i.id === derivesFromRel.to);
+                if (parentItem && parentItem.level) {
+                  const nextLevel = getNextLevel(parentItem.level);
+                  if (nextLevel !== formData.level) {
+                    setSuggestedLevel(nextLevel);
+                    setShowLevelConfirm(true);
+                  }
+                }
+              }
+            }, [selectedRelationships, formData.type]);
 
             return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
               h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto' },
@@ -1251,7 +1318,23 @@ const handleCreateProject = async (projectData) => {
                     className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 flex items-center justify-center gap-2'
                   }, h(X, { size: 16 }), ' Cancel')
                 )
-              )
+              ),
+              showLevelConfirm && h(LevelConfirmModal, {
+                suggestedLevel,
+                currentLevel: items.find(i => selectedRelationships.find(r => r.type === 'derives-from' && r.to === i.id))?.level || 'system',
+                onAccept: () => {
+                  setFormData({ ...formData, level: suggestedLevel });
+                  setShowLevelConfirm(false);
+                },
+                onReject: () => {
+                  setShowLevelConfirm(false);
+                },
+                onClose: () => {
+                  setShowLevelConfirm(false);
+                },
+                formData
+              })
+            );
             );
           };
 
