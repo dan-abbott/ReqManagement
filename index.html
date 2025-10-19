@@ -2233,19 +2233,17 @@ const handleCreateProject = async (projectData) => {
                   h('div', { className: 'flex gap-2' },
                     h('button', {
                       onClick: () => setShowNewItemForm(true),
-                      className: 'flex-1 bg-fresh-600 text-white px-3 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
-                    }, h(Plus, { size: 16 }), ' New Item'),
-                    h('button', {
-                      onClick: () => setShowImportModal(true),
-                      className: 'bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 flex items-center justify-center gap-2',
-                      title: 'Import requirements from CSV'
-                    }, '📥')
-                  ),
-                  h('div', { className: 'flex gap-2' },
+                      className: 'flex-1 bg-fresh-600 text-white px-2 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-1 text-sm'
+                    }, h(Plus, { size: 14 }), ' New Item'),
                     h('button', {
                       onClick: () => setShowRelationshipForm(true),
-                      className: 'flex-1 bg-fresh-600 text-white px-3 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
-                    }, h(Link2, { size: 16 }), ' Link Items')
+                      className: 'flex-1 bg-fresh-600 text-white px-2 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-1 text-sm'
+                    }, h(Link2, { size: 14 }), ' Link Items'),
+                    h('button', {
+                      onClick: () => setShowImportModal(true),
+                      className: 'flex-1 bg-fresh-600 text-white px-2 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-1 text-sm',
+                      title: 'Import requirements from CSV'
+                    }, 'Import')
                   ),
                   h('div', { className: 'flex gap-2' },
                     h('div', { className: 'flex-1 relative' },
