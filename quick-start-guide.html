@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Start Guide - Requirements Management System</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f9fafb;
+        }
+        .header {
+            background: #16a34a;
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2em;
+        }
+        .header p {
+            margin: 0;
+            opacity: 0.9;
+        }
+        .content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #16a34a;
+            border-bottom: 2px solid #16a34a;
+            padding-bottom: 10px;
+            margin-top: 40px;
+        }
+        h3 {
+            color: #15803d;
+            margin-top: 25px;
+        }
+        .step {
+            background: #f0fdf4;
+            border-left: 4px solid #16a34a;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .step-number {
+            display: inline-block;
+            background: #16a34a;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .tip {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .tip-icon {
+            display: inline-block;
+            font-weight: bold;
+            color: #f59e0b;
+            margin-right: 10px;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .feature-card {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+        }
+        .feature-card strong {
+            color: #16a34a;
+        }
+        ul {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .workflow-section {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        th {
+            background: #f3f4f6;
+            font-weight: 600;
+            color: #16a34a;
+        }
+        .keyboard-shortcut {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Quick Start Guide</h1>
+        <p>Requirements Management System - Fresh Consulting</p>
+    </div>
+
+    <div class="content">
+        <h2>📋 What is This System?</h2>
+        <p>
+            This Requirements Management System helps you organize, track, and manage requirements throughout 
+            the entire product development lifecycle. From initial concepts to detailed specifications, from 
+            test cases to defect tracking, this system provides full traceability and collaboration features 
+            for your engineering projects.
+        </p>
+
+        <div class="feature-list">
+            <div class="feature-card">
+                <strong>Hierarchical Requirements</strong><br>
+                Organize requirements from high-level system specs down to detailed component requirements
+            </div>
+            <div class="feature-card">
+                <strong>Test Traceability</strong><br>
+                Link test cases to requirements to ensure complete test coverage
+            </div>
+            <div class="feature-card">
+                <strong>Workflow Management</strong><br>
+                Track items through review, approval, testing, and defect resolution workflows
+            </div>
+            <div class="feature-card">
+                <strong>Collaboration</strong><br>
+                Comment, review, and collaborate with team members on requirements
+            </div>
+            <div class="feature-card">
+                <strong>Audit Trail</strong><br>
+                Complete history of all changes, approvals, and test results
+            </div>
+            <div class="feature-card">
+                <strong>Reporting</strong><br>
+                Track test coverage, traceability, and project health metrics
+            </div>
+        </div>
+
+        <h2>🎯 Getting Started</h2>
+
+        <div class="step">
+            <span class="step-number">1</span>
+            <strong>Initial Setup</strong>
+            <p>
+                If this is your first time, you'll need to configure your Supabase database connection. 
+                The system will prompt you for your Supabase Project URL and Anon Key. You can find these 
+                in your Supabase project settings under "API".
+            </p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">2</span>
+            <strong>Create Database Tables</strong>
+            <p>
+                Click "Show Database Setup Instructions" to get the SQL commands needed to create the 
+                required tables in your Supabase database. Copy these commands and run them in your 
+                Supabase SQL Editor (found in the left sidebar of your Supabase dashboard).
+            </p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">3</span>
+            <strong>Sign In with Google</strong>
+            <p>
+                The system uses Google authentication to track who creates, reviews, and approves items. 
+                Click "Sign in with Google" to authenticate. Your email will be used to identify you in 
+                comments and audit logs.
+            </p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">4</span>
+            <strong>Load Sample Data (Optional)</strong>
+            <p>
+                To explore the system with realistic data, download the <code>sample_data.sql</code> file 
+                and run it in your Supabase SQL Editor. This creates a complete mobile banking app project 
+                with requirements, test cases, defects, and relationships that demonstrate all system features.
+            </p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">5</span>
+            <strong>Create Your First Project</strong>
+            <p>
+                Click the project dropdown at the top and select "+ New Project". Give it a name, project ID 
+                (PID), and optionally assign a project manager and lead engineer. All items you create will 
+                belong to the currently selected project.
+            </p>
+        </div>
+
+        <h2>🏗️ Item Types & Hierarchy</h2>
+
+        <h3>Item Types</h3>
+        <table>
+            <tr>
+                <th>Type</th>
+                <th>Purpose</th>
+                <th>Example</th>
+            </tr>
+            <tr>
+                <td><strong>Epic</strong></td>
+                <td>Organizational container grouping related work</td>
+                <td>"User Authentication Feature"</td>
+            </tr>
+            <tr>
+                <td><strong>Requirement</strong></td>
+                <td>Specification of what the system must do</td>
+                <td>"System shall authenticate users via OAuth"</td>
+            </tr>
+            <tr>
+                <td><strong>Test Case</strong></td>
+                <td>Procedure to verify a requirement</td>
+                <td>"Verify login with valid credentials"</td>
+            </tr>
+            <tr>
+                <td><strong>Defect</strong></td>
+                <td>Bug or issue found during testing</td>
+                <td>"Login fails on Safari browser"</td>
+            </tr>
+        </table>
+
+        <h3>Requirement Levels (Hierarchical Decomposition)</h3>
+        <p>Requirements can be organized into seven hierarchical levels, each representing increasing detail:</p>
+        <ul>
+            <li><strong>System</strong> - Highest level, describes what the entire system must do</li>
+            <li><strong>Sub-System</strong> - Major subsystems or components</li>
+            <li><strong>Assembly</strong> - Logical groupings within subsystems</li>
+            <li><strong>Sub-Assembly</strong> - Detailed assemblies</li>
+            <li><strong>Component</strong> - Individual components</li>
+            <li><strong>Sub-Component</strong> - Parts of components</li>
+            <li><strong>Material</strong> - Lowest level, material specifications</li>
+        </ul>
+
+        <div class="tip">
+            <span class="tip-icon">💡</span>
+            <strong>Tip:</strong> Use epics for high-level organization (like features or themes), then nest 
+            requirements underneath them. The visual indentation in the tree shows the requirement level 
+            automatically.
+        </div>
+
+        <h2>🔄 Common Workflows</h2>
+
+        <div class="workflow-section">
+            <h3>Creating Requirements</h3>
+            <ol>
+                <li>Click <strong>"New Item"</strong> button</li>
+                <li>Select type (epic, requirement, test-case, or defect)</li>
+                <li>Fill in title and description (required)</li>
+                <li>For requirements: add rationale and select the appropriate level</li>
+                <li>Optionally assign an owner and reviewer</li>
+                <li>Click <strong>"Save"</strong></li>
+            </ol>
+        </div>
+
+        <div class="workflow-section">
+            <h3>Review & Approval Process</h3>
+            <ol>
+                <li>Create a requirement and assign a reviewer</li>
+                <li>When ready for review, click <strong>"📤 Send for Review"</strong></li>
+                <li>The reviewer will see it in their <strong>"Items Awaiting Your Review"</strong> panel</li>
+                <li>Reviewer opens the item and clicks <strong>"Approve"</strong> or <strong>"Reject"</strong></li>
+                <li>If rejected, item returns to draft for revision</li>
+                <li>If approved, requirement is locked until edited (which resets it to draft)</li>
+            </ol>
+        </div>
+
+        <div class="workflow-section">
+            <h3>Test Case Execution</h3>
+            <ol>
+                <li>Create a test case and assign a tester</li>
+                <li>Link it to the requirement(s) it tests using the <strong>"Link Items"</strong> button</li>
+                <li>When ready for testing, click <strong>"🧪 Ready for Test"</strong></li>
+                <li>The tester will see it in their <strong>"Tests Awaiting Execution"</strong> panel</li>
+                <li>Tester opens the item and clicks <strong>"Pass"</strong> or <strong>"Fail"</strong></li>
+                <li>If failed, tester can create a defect and link it to the requirement</li>
+            </ol>
+        </div>
+
+        <div class="workflow-section">
+            <h3>Creating Relationships</h3>
+            <p>Relationships show how items connect. To create a relationship:</p>
+            <ol>
+                <li>Click <strong>"Link Items"</strong> button</li>
+                <li>Select the source item (From)</li>
+                <li>Select relationship type:
+                    <ul>
+                        <li><strong>tests</strong> - Test case validates a requirement</li>
+                        <li><strong>derives-from</strong> - Lower-level requirement decomposes from higher-level</li>
+                        <li><strong>depends-on</strong> - Implementation depends on another requirement</li>
+                        <li><strong>relates-to</strong> - General connection (like defect to requirement)</li>
+                    </ul>
+                </li>
+                <li>Select the target item (To)</li>
+                <li>Click <strong>"Add Relationship"</strong></li>
+            </ol>
+        </div>
+
+        <h2>📊 Viewing & Navigation</h2>
+
+        <h3>Tree View Controls</h3>
+        <table>
+            <tr>
+                <th>Control</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td><strong>Search Box</strong></td>
+                <td>Filter items by text in title or description</td>
+            </tr>
+            <tr>
+                <td><strong>Type Filter</strong></td>
+                <td>Show only specific item types (epic, requirement, test-case, defect)</td>
+            </tr>
+            <tr>
+                <td><strong>Status Filter</strong></td>
+                <td>Show only items in specific workflow states (draft, approved, failed, etc.)</td>
+            </tr>
+            <tr>
+                <td><strong>Collapse All</strong></td>
+                <td>Fold up entire tree to show only top-level items</td>
+            </tr>
+            <tr>
+                <td><strong>Expand to...</strong></td>
+                <td>Intelligently expand tree to show specific requirement level</td>
+            </tr>
+        </table>
+
+        <div class="tip">
+            <span class="tip-icon">💡</span>
+            <strong>Power User Tip:</strong> Combine filters for powerful queries. For example:
+            <ul>
+                <li>Type: test-case + Status: failed = Show only failing tests</li>
+                <li>Type: defect + Status: backlog = Show deferred bugs</li>
+                <li>Type: requirement + Status: in-review = Show items awaiting review</li>
+            </ul>
+        </div>
+
+        <h3>Detail Panel</h3>
+        <p>Click any item in the tree to open the detail panel on the right. Here you can:</p>
+        <ul>
+            <li><strong>View all details</strong> - Description, rationale, status, priority, owner, etc.</li>
+            <li><strong>Edit the item</strong> - Click the edit icon (pencil)</li>
+            <li><strong>See relationships</strong> - View in list or graph mode; click relationships to navigate</li>
+            <li><strong>Add comments</strong> - Collaborate with team members</li>
+            <li><strong>View audit history</strong> - See complete lifecycle and all changes</li>
+            <li><strong>Execute workflow actions</strong> - Send for review, mark ready for test, approve/reject, pass/fail</li>
+        </ul>
+
+        <h3>Drag & Drop</h3>
+        <p>
+            You can reorganize your hierarchy by dragging items. Grab the grip icon (⋮⋮) on the left of any 
+            item and drag it onto another item to make it a child of that item.
+        </p>
+
+        <h2>📥 Bulk Import</h2>
+        <p>For bulk data entry, use the CSV import feature:</p>
+        <ol>
+            <li>Click the <strong>"Import"</strong> button</li>
+            <li>Download the CSV template to see the required format</li>
+            <li>Fill in your data in Excel, Google Sheets, or any spreadsheet tool</li>
+            <li>Export as CSV</li>
+            <li>Select your CSV file and click <strong>"Import CSV"</strong></li>
+            <li>Review the import summary showing successes and any errors</li>
+        </ol>
+
+        <div class="tip">
+            <span class="tip-icon">💡</span>
+            <strong>CSV Import Tips:</strong>
+            <ul>
+                <li>Required fields: type and title</li>
+                <li>Valid types: epic, requirement, test-case, defect</li>
+                <li>All imported items go into the currently selected project</li>
+                <li>Items are created at the root level; organize them afterwards with drag & drop</li>
+            </ul>
+        </div>
+
+        <h2>📈 Reports & Analytics</h2>
+        <p>Click <strong>"Show Reports"</strong> in the header to see project metrics:</p>
+        <ul>
+            <li><strong>Total Items</strong> - Count of all requirements, test cases, etc.</li>
+            <li><strong>Test Coverage</strong> - Percentage of requirements with test cases</li>
+            <li><strong>Traceability Score</strong> - Percentage of items with relationships</li>
+            <li><strong>Status Distribution</strong> - Breakdown of items by workflow state</li>
+            <li><strong>Priority Distribution</strong> - Count of critical, high, medium, low items</li>
+            <li><strong>Owner Workload</strong> - Items assigned to each team member</li>
+        </ul>
+
+        <h2>🎨 Best Practices</h2>
+
+        <h3>Project Organization</h3>
+        <ul>
+            <li>Create separate projects for different products, releases, or major initiatives</li>
+            <li>Use meaningful Project IDs (PIDs) like "MOB-2" or "WEB-1" for easy reference</li>
+            <li>Assign project managers and lead engineers for accountability</li>
+        </ul>
+
+        <h3>Requirements Hierarchy</h3>
+        <ul>
+            <li>Start with epics to define major features or themes</li>
+            <li>Write system-level requirements first to define high-level capabilities</li>
+            <li>Decompose into lower levels only as needed for clarity</li>
+            <li>Use "derives-from" relationships to show parent-child requirements</li>
+            <li>Write requirements as "System shall..." or "Component shall..." statements</li>
+        </ul>
+
+        <h3>Test Coverage</h3>
+        <ul>
+            <li>Create at least one test case for every requirement</li>
+            <li>Link test cases to requirements using "tests" relationships</li>
+            <li>Include detailed test methods - use URLs to link to automation frameworks</li>
+            <li>Use the Reports view to identify requirements lacking test coverage</li>
+        </ul>
+
+        <h3>Workflow Discipline</h3>
+        <ul>
+            <li>Always assign reviewers to requirements that need approval</li>
+            <li>Send items for review when they're ready, don't skip the approval process</li>
+            <li>Use comments to discuss changes rather than just making silent edits</li>
+            <li>When tests fail, create defects and link them to the relevant requirements</li>
+            <li>Update defect status as you work on fixes (not-started → in-process → resolved)</li>
+        </ul>
+
+        <h3>Collaboration</h3>
+        <ul>
+            <li>Use comments to ask questions, provide feedback, and document decisions</li>
+            <li>Check audit history to understand why changes were made</li>
+            <li>Assign owners to ensure accountability for each item</li>
+            <li>Use the review panels to stay on top of items awaiting your action</li>
+        </ul>
+
+        <h2>❓ Troubleshooting</h2>
+
+        <h3>Common Issues</h3>
+
+        <p><strong>Items not appearing in tree view</strong></p>
+        <ul>
+            <li>Check that you have the correct project selected</li>
+            <li>Clear any type or status filters that might be hiding items</li>
+            <li>Verify the items belong to the selected project by checking in Supabase</li>
+        </ul>
+
+        <p><strong>Can't approve/reject items</strong></p>
+        <ul>
+            <li>Only the assigned reviewer can approve/reject requirements</li>
+            <li>Only the assigned tester can pass/fail test cases</li>
+            <li>Item must be in "in-review" or "ready-for-test" status</li>
+        </ul>
+
+        <p><strong>CSV import errors</strong></p>
+        <ul>
+            <li>Ensure type is exactly: epic, requirement, test-case, or defect</li>
+            <li>Verify title is not empty</li>
+            <li>Check that status values match the valid statuses for that item type</li>
+            <li>Make sure you have a project selected before importing</li>
+        </ul>
+
+        <h2>🔐 Data & Privacy</h2>
+        <p>
+            Your requirements data is stored in your own Supabase database. Fresh Consulting does not have 
+            access to your data. The application runs entirely in your browser and connects directly to your 
+            Supabase instance. You control access, backups, and security settings through your Supabase account.
+        </p>
+
+        <h2>📞 Support & Feedback</h2>
+        <p>
+            This requirements management system is developed by Fresh Consulting. For questions, feature 
+            requests, or support:
+        </p>
+        <ul>
+            <li>Email: <a href="mailto:support@freshconsulting.com">support@freshconsulting.com</a></li>
+            <li>Website: <a href="https://www.freshconsulting.com" target="_blank">freshconsulting.com</a></li>
+        </ul>
+
+        <div style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280;">
+            <p>Requirements Management System © 2024 Fresh Consulting</p>
+        </div>
+    </div>
+</body>
+</html>
