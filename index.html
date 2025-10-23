@@ -2089,6 +2089,13 @@ const handleCreateProject = async (projectData) => {
                   }),
                   h('span', { className: 'text-sm' }, user.user_metadata?.full_name || user.email)
                 ),
+                h('a', {
+                  href: './quick-start-guide.html',
+                  target: '_blank',
+                  rel: 'noopener noreferrer',
+                  className: 'px-4 py-2 bg-fresh-500 rounded hover:bg-fresh-700 flex items-center gap-2 text-white no-underline',
+                  title: 'Open Quick Start Guide'
+                }, '❓ Help'),
                 h('button', {
                   onClick: () => setShowReports(!showReports),
                   className: `px-4 py-2 rounded flex items-center gap-2 ${showReports ? 'bg-fresh-700' : 'bg-fresh-500 hover:bg-fresh-700'}`
