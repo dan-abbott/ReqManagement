@@ -410,6 +410,46 @@ CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);
 CREATE POLICY "Enable all operations" ON audit_logs FOR ALL USING (true);
 CREATE POLICY "Enable all operations" ON folders FOR ALL USING (true);
 CREATE POLICY "Enable all operations" ON test_runs FOR ALL USING (true);
+CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);
+
+CREATE TABLE IF NOT EXISTS folders (
+  id BIGSERIAL PRIMARY KEY,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  parent_id BIGINT REFERENCES folders(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS test_runs (
+  id BIGSERIAL PRIMARY KEY,
+  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  status TEXT DEFAULT 'planned',
+  created_by TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  completed_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS test_results (
+  id BIGSERIAL PRIMARY KEY,
+  test_run_id BIGINT REFERENCES test_runs(id) ON DELETE CASCADE,
+  test_case_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending',
+  notes TEXT,
+  executed_by TEXT,
+  executed_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(test_run_id, test_case_id)
+);
+
+ALTER TABLE items ADD COLUMN IF NOT EXISTS folder_id BIGINT REFERENCES folders(id) ON DELETE SET NULL;
+
+ALTER TABLE folders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE test_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE test_results ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable all operations" ON folders FOR ALL USING (true);
+CREATE POLICY "Enable all operations" ON test_runs FOR ALL USING (true);
 CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
           };
 
@@ -1197,7 +1237,10 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             };
 
             const renderTreeItem = (item, depth = 0) => {
-              const hasChildren = item.children && item.children.length > 0;
+              const hasChildren = Array.isArray(item.children) && 
+                    item.children.length > 0 && 
+                    item.children.some(childId => items.find(i => i.id === childId));
+
               const isExpanded = expandedItems.has(item.id);
               const isSelected = selectedItem?.id === item.id;
 
