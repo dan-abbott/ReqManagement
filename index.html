@@ -3,2711 +3,851 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fresh Consulting - Requirements Management</title>
+    <title>Requirements Management System</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // Customize Tailwind with Fresh green colors
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        fresh: {
-                            50: '#f0fdf4',
-                            100: '#dcfce7',
-                            200: '#bbf7d0',
-                            300: '#86efac',
-                            400: '#4ade80',
-                            500: '#22c55e',
-                            600: '#16a34a',
-                            700: '#15803d',
-                            800: '#166534',
-                            900: '#14532d',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
+        .folder-item { cursor: pointer; user-select: none; }
+        .folder-item:hover { background-color: #f3f4f6; }
+        .folder-expanded { font-weight: 600; }
+        .folder-children { padding-left: 20px; border-left: 1px solid #e5e7eb; margin-left: 8px; }
+        .test-run-card { transition: all 0.2s; }
+        .test-run-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+        .status-pass { background-color: #d1fae5; color: #065f46; }
+        .status-fail { background-color: #fee2e2; color: #991b1b; }
+        .status-block { background-color: #fef3c7; color: #92400e; }
+        .status-pending { background-color: #e0e7ff; color: #3730a3; }
+        .progress-bar { height: 8px; background-color: #e5e7eb; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; transition: width 0.3s ease; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: white; border-radius: 8px; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+    </style>
 </head>
 <body>
     <div id="root"></div>
-    
-    <!-- Load React and ReactDOM first -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Then load our app as a module after React is ready -->
-    <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/+esm';
+    <script>
+        const { createElement: h, useState, useEffect, useCallback, useMemo } = React;
         
-        // Wait for React to be loaded before initializing
-        async function initApp() {
-            // Wait for React to be available on window
-            while (typeof window.React === 'undefined' || typeof window.ReactDOM === 'undefined') {
-                await new Promise(resolve => setTimeout(resolve, 50));
-            }
-            
-            const { useState, useEffect, useMemo, useRef, createElement: h } = window.React;
-
-        // ============================================
-        // DEVELOPMENT CREDENTIALS (Set these to skip config screen)
-        // ============================================
-        const DEV_SUPABASE_URL = 'https://ttkcqwsfdmlzxrndjrov.supabase.co';
-        const DEV_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0a2Nxd3NmZG1senhybmRqcm92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MDczMTksImV4cCI6MjA3NjI4MzMxOX0.aQEDyTLZQC8t0Z1pOWG_zNMGpDTKWu_YYmLmZq2HgXc';
-        // ============================================
-
-        // Icon components
-        const Icon = ({ d, size = 24, ...props }) => h('svg', {
+        // Lucide React Icons
+        const Icon = ({ size = 24, d, children, className = '', ...props }) => 
+          h('svg', {
+            xmlns: 'http://www.w3.org/2000/svg',
             width: size,
             height: size,
             viewBox: '0 0 24 24',
             fill: 'none',
             stroke: 'currentColor',
-            strokeWidth: '2',
+            strokeWidth: 2,
             strokeLinecap: 'round',
             strokeLinejoin: 'round',
+            className,
             ...props
-        }, typeof d === 'string' ? h('path', { d }) : d);
+          }, d || children);
 
-        const Plus = ({ size }) => Icon({ size, d: 'M12 5v14M5 12h14' });
-        const Link2 = ({ size }) => Icon({ size, d: ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'].map((d, i) => h('path', { key: i, d })) });
-        const GitBranch = ({ size }) => Icon({ size, d: ['M6 3v12', h('circle', { key: 'c1', cx: 18, cy: 6, r: 3 }), h('circle', { key: 'c2', cx: 6, cy: 18, r: 3 }), h('path', { key: 'p', d: 'M18 9a9 9 0 0 1-9 9' })] });
-        const MessageSquare = ({ size }) => Icon({ size, d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' });
-        const Edit2 = ({ size }) => Icon({ size, d: 'M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z' });
-        const Trash2 = ({ size }) => Icon({ size, d: ['M3 6h18', 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2', 'M10 11v6', 'M14 11v6'].map((d, i) => h(d.includes('M') ? 'path' : 'line', { key: i, [d.includes('M') ? 'd' : 'x1']: d.includes('M') ? d : d.split(' ')[0], ...(d.includes(' ') && !d.includes('M') ? { y1: d.split(' ')[1], x2: d.split(' ')[2], y2: d.split(' ')[3] } : {}) })) });
-        const Save = ({ size }) => Icon({ size, d: ['M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z', 'M17 21v-8H7v8', 'M7 3v5h8'].map((d, i) => h(d.includes('M') ? 'path' : 'polyline', { key: i, [d.includes('M') ? 'd' : 'points']: d })) });
-        const X = ({ size }) => Icon({ size, d: h('g', {}, [h('line', { key: 1, x1: 18, y1: 6, x2: 6, y2: 18 }), h('line', { key: 2, x1: 6, y1: 6, x2: 18, y2: 18 })]) });
-        const ChevronRight = ({ size }) => Icon({ size, d: h('polyline', { points: '9 18 15 12 9 6' }) });
-        const ChevronDown = ({ size }) => Icon({ size, d: h('polyline', { points: '6 9 12 15 18 9' }) });
-        const Filter = ({ size }) => Icon({ size, d: h('polygon', { points: '22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3' }) });
-        const Search = ({ size }) => Icon({ size, d: [h('circle', { key: 'c', cx: 11, cy: 11, r: 8 }), h('path', { key: 'p', d: 'm21 21-4.35-4.35' })] });
-        const BarChart3 = ({ size }) => Icon({ size, d: ['M3 3v18h18', 'M18 17V9', 'M13 17V5', 'M8 17v-3'].map((d, i) => h('path', { key: i, d })) });
-        const PieChart = ({ size }) => Icon({ size, d: ['M21.21 15.89A10 10 0 1 1 8 2.83', 'M22 12A10 10 0 0 0 12 2v10z'].map((d, i) => h('path', { key: i, d })) });
-        const TrendingUp = ({ size }) => Icon({ size, d: [h('polyline', { key: 1, points: '23 6 13.5 15.5 8.5 10.5 1 18' }), h('polyline', { key: 2, points: '17 6 23 6 23 12' })] });
+        const Menu = ({ size }) => Icon({ size, d: [h('line', { key: 1, x1: 4, y1: 12, x2: 20, y2: 12 }), h('line', { key: 2, x1: 4, y1: 6, x2: 20, y2: 6 }), h('line', { key: 3, x1: 4, y1: 18, x2: 20, y2: 18 })] });
+        const Plus = ({ size }) => Icon({ size, d: [h('line', { key: 1, x1: 12, y1: 5, x2: 12, y2: 19 }), h('line', { key: 2, x1: 5, y1: 12, x2: 19, y2: 12 })] });
+        const FileText = ({ size }) => Icon({ size, d: [h('path', { key: 1, d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' }), h('polyline', { key: 2, points: '14 2 14 8 20 8' }), h('line', { key: 3, x1: 16, y1: 13, x2: 8, y2: 13 }), h('line', { key: 4, x1: 16, y1: 17, x2: 8, y2: 17 }), h('polyline', { key: 5, points: '10 9 9 9 8 9' })] });
+        const CheckSquare = ({ size }) => Icon({ size, d: [h('polyline', { key: 1, points: '9 11 12 14 22 4' }), h('path', { key: 2, d: 'M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11' })] });
+        const AlertCircle = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 12, cy: 12, r: 10 }), h('line', { key: 2, x1: 12, y1: 8, x2: 12, y2: 12 }), h('line', { key: 3, x1: 12, y1: 16, x2: 12.01, y2: 16 })] });
+        const Target = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 12, cy: 12, r: 10 }), h('circle', { key: 2, cx: 12, cy: 12, r: 6 }), h('circle', { key: 3, cx: 12, cy: 12, r: 2 })] });
+        const Filter = ({ size }) => Icon({ size, d: [h('polygon', { key: 1, points: '22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3' })] });
+        const Search = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 11, cy: 11, r: 8 }), h('line', { key: 2, x1: 21, y1: 21, x2: 16.65, y2: 16.65 })] });
+        const User = ({ size }) => Icon({ size, d: [h('path', { key: 1, d: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' }), h('circle', { key: 2, cx: 12, cy: 7, r: 4 })] });
+        const Link = ({ size }) => Icon({ size, d: [h('path', { key: 1, d: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71' }), h('path', { key: 2, d: 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' })] });
+        const GitBranch = ({ size }) => Icon({ size, d: [h('line', { key: 1, x1: 6, y1: 3, x2: 6, y2: 15 }), h('circle', { key: 2, cx: 18, cy: 6, r: 3 }), h('circle', { key: 3, cx: 6, cy: 18, r: 3 }), h('path', { key: 4, d: 'M18 9a9 9 0 0 1-9 9' })] });
+        const Upload = ({ size }) => Icon({ size, d: [h('path', { key: 1, d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }), h('polyline', { key: 2, points: '17 8 12 3 7 8' }), h('line', { key: 3, x1: 12, y1: 3, x2: 12, y2: 15 })] });
+        const Download = ({ size }) => Icon({ size, d: [h('path', { key: 1, d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }), h('polyline', { key: 2, points: '7 10 12 15 17 10' }), h('line', { key: 3, x1: 12, y1: 15, x2: 12, y2: 3 })] });
+        const X = ({ size }) => Icon({ size, d: [h('line', { key: 1, x1: 18, y1: 6, x2: 6, y2: 18 }), h('line', { key: 2, x1: 6, y1: 6, x2: 18, y2: 18 })] });
+        const ChevronDown = ({ size }) => Icon({ size, d: [h('polyline', { key: 1, points: '6 9 12 15 18 9' })] });
+        const ChevronRight = ({ size }) => Icon({ size, d: [h('polyline', { key: 1, points: '9 18 15 12 9 6' })] });
+        const Folder = ({ size }) => Icon({ size, d: [h('path', { key: 1, d: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' })] });
+        const FolderOpen = ({ size }) => Icon({ size, d: [h('path', { key: 1, d: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' }), h('path', { key: 2, d: 'M2 8v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2H8' })] });
+        const Play = ({ size }) => Icon({ size, d: [h('polygon', { key: 1, points: '5 3 19 12 5 21 5 3' })] });
         const CheckCircle = ({ size }) => Icon({ size, d: [h('path', { key: 1, d: 'M22 11.08V12a10 10 0 1 1-5.93-9.14' }), h('polyline', { key: 2, points: '22 4 12 14.01 9 11.01' })] });
         const XCircle = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 12, cy: 12, r: 10 }), h('line', { key: 2, x1: 15, y1: 9, x2: 9, y2: 15 }), h('line', { key: 3, x1: 9, y1: 9, x2: 15, y2: 15 })] });
-        const GripVertical = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 9, cy: 12, r: 1 }), h('circle', { key: 2, cx: 9, cy: 5, r: 1 }), h('circle', { key: 3, cx: 9, cy: 19, r: 1 }), h('circle', { key: 4, cx: 15, cy: 12, r: 1 }), h('circle', { key: 5, cx: 15, cy: 5, r: 1 }), h('circle', { key: 6, cx: 15, cy: 19, r: 1 })] });
+        const Clock = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 12, cy: 12, r: 10 }), h('polyline', { key: 2, points: '12 6 12 12 16 14' })] });
+        const HelpCircle = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 12, cy: 12, r: 10 }), h('path', { key: 2, d: 'M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3' }), h('line', { key: 3, x1: 12, y1: 17, x2: 12.01, y2: 17 })] });
+        const Calendar = ({ size }) => Icon({ size, d: [h('rect', { key: 1, x: 3, y: 4, width: 18, height: 18, rx: 2, ry: 2 }), h('line', { key: 2, x1: 16, y1: 2, x2: 16, y2: 6 }), h('line', { key: 3, x1: 8, y1: 2, x2: 8, y2: 6 }), h('line', { key: 4, x1: 3, y1: 10, x2: 21, y2: 10 })] });
+        const List = ({ size }) => Icon({ size, d: [h('line', { key: 1, x1: 8, y1: 6, x2: 21, y2: 6 }), h('line', { key: 2, x1: 8, y1: 12, x2: 21, y2: 12 }), h('line', { key: 3, x1: 8, y1: 18, x2: 21, y2: 18 }), h('line', { key: 4, x1: 3, y1: 6, x2: 3.01, y2: 6 }), h('line', { key: 5, x1: 3, y1: 12, x2: 3.01, y2: 12 }), h('line', { key: 6, x1: 3, y1: 18, x2: 3.01, y2: 18 })] });
 
-        const RequirementsManager = () => {
-          const [supabaseUrl, setSupabaseUrl] = useState(DEV_SUPABASE_URL || '');
-          const [supabaseKey, setSupabaseKey] = useState(DEV_SUPABASE_KEY || '');
-          const [supabase, setSupabase] = useState(null);
-          const [isConfigured, setIsConfigured] = useState(false);
-          const [user, setUser] = useState(null);
-          const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-          
-          const [items, setItems] = useState([]);
-          const [relationships, setRelationships] = useState([]);
-          const [comments, setComments] = useState([]);
-          const [auditLogs, setAuditLogs] = useState([]);
-          const [projects, setProjects] = useState([]);
-          const [selectedProject, setSelectedProject] = useState(null);
-          const [showProjectForm, setShowProjectForm] = useState(false);
-          const [projectSearchTerm, setProjectSearchTerm] = useState('');
-          const [showProjectDropdown, setShowProjectDropdown] = useState(false);
-          const [selectedItem, setSelectedItem] = useState(null);
-          const [editingItem, setEditingItem] = useState(null);
-          const [showNewItemForm, setShowNewItemForm] = useState(false);
-          const [newComment, setNewComment] = useState('');
-          const [expandedItems, setExpandedItems] = useState(new Set([1]));
-          const [filterType, setFilterType] = useState('all');
-          const [filterStatus, setFilterStatus] = useState('all');
-          const [searchTerm, setSearchTerm] = useState('');
-          const [showRelationshipForm, setShowRelationshipForm] = useState(false);
-          const [showReports, setShowReports] = useState(false);
-          const [loading, setLoading] = useState(false);
-          const [showGraphView, setShowGraphView] = useState(false);
-          const [showApprovalModal, setShowApprovalModal] = useState(false);
-          const [showAuditHistory, setShowAuditHistory] = useState(false);
-          const [showDetailPanel, setShowDetailPanel] = useState(true);
-          const [showReviewPanel, setShowReviewPanel] = useState(true);
-          const [showTestPanel, setShowTestPanel] = useState(true);
-          const [draggedItem, setDraggedItem] = useState(null);
-          const [dropTarget, setDropTarget] = useState(null);
-          const [approvalAction, setApprovalAction] = useState('approve');
-          const [approvalNotes, setApprovalNotes] = useState('');
-          const [showImportModal, setShowImportModal] = useState(false);
-          const [importFile, setImportFile] = useState(null);
-          
-          const itemTypes = ['epic', 'requirement', 'test-case', 'defect'];
-          const statuses = {
-            epic: ['draft', 'in-review', 'approved', 'rejected'],
-            requirement: ['draft', 'in-review', 'approved', 'rejected'],
-            'test-case': ['draft', 'ready-for-test', 'passed', 'failed'],
-            defect: ['not-started', 'in-process', 'resolved', 'backlog']
-          };
-          const priorities = ['low', 'medium', 'high', 'critical'];
-          const relationshipTypes = ['tests', 'depends-on', 'derives-from', 'relates-to'];
-          
-          const requirementLevels = [
-            'system',
-            'sub-system', 
-            'assembly',
-            'sub-assembly',
-            'component',
-            'sub-component',
-            'material'
-          ];
+        // Database simulation
+        const DB_NAME = 'RequirementsDB';
+        const DB_VERSION = 3;
 
-          useEffect(() => {
-            if (DEV_SUPABASE_URL && DEV_SUPABASE_KEY && !supabase) {
-              initializeSupabase();
-            }
-          }, []);
-
-          const initializeSupabase = () => {
-            if (supabaseUrl && supabaseKey) {
-              const client = createClient(supabaseUrl, supabaseKey);
-              setSupabase(client);
-              setIsConfigured(true);
-              
-              // Set up auth state listener
-              client.auth.onAuthStateChange((event, session) => {
-                setUser(session?.user || null);
-                if (session?.user) {
-                  loadData(client);
-                }
-              });
-              
-              // Check for existing session
-              client.auth.getSession().then(({ data: { session } }) => {
-                setUser(session?.user || null);
-                if (session?.user) {
-                  loadData(client);
-                } else {
-                  setShowAuthPrompt(true);
-                }
-              });
-            }
-          };
-
-          const handleGoogleSignIn = async () => {
-            if (!supabase) return;
+        const initDB = () => {
+          return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
             
-            try {
-              // Get the full current URL including path (but strip any existing query params or hash)
-              const currentUrl = window.location.origin + window.location.pathname;
-              
-              const { error } = await supabase.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                  redirectTo: currentUrl
-                }
-              });
-              
-              if (error) throw error;
-            } catch (error) {
-              console.error('Error signing in:', error);
-              alert('Error signing in with Google: ' + error.message);
-            }
-          };
-
-          const handleSignOut = async () => {
-            if (!supabase) return;
-            await supabase.auth.signOut();
-            setUser(null);
-            setShowAuthPrompt(true);
-            // Clear all view state
-            setSelectedItem(null);
-            setEditingItem(null);
-            setSelectedProject(null);
-            setItems([]);
-            setRelationships([]);
-            setComments([]);
-            setAuditLogs([]);
-            setProjects([]);
-          };
-
-          const loadData = async (client) => {
-            setLoading(true);
-            try {
-              const [itemsRes, relationshipsRes, commentsRes, projectsRes, auditLogsRes] = await Promise.all([
-                client.from('items').select('*').order('id'),
-                client.from('relationships').select('*'),
-                client.from('comments').select('*').order('timestamp', { ascending: false }),
-                client.from('projects').select('*').order('name'),
-                client.from('audit_logs').select('*').order('timestamp', { ascending: false })
-              ]);
-              
-              if (itemsRes.data) setItems(itemsRes.data);
-              if (relationshipsRes.data) setRelationships(relationshipsRes.data);
-              if (commentsRes.data) setComments(commentsRes.data);
-              if (auditLogsRes.data) setAuditLogs(auditLogsRes.data);
-              if (projectsRes.data) {
-                setProjects(projectsRes.data);
-                // Auto-select first project if none selected
-                // Only auto-select on initial load, not when refreshing data
-                // Never auto-select project
-                if (false) {
-                  setSelectedProject(projectsRes.data[0]);
-                }
-              }
-            } catch (error) {
-              console.error('Error loading data:', error);
-              alert('Error loading data. Please check your Supabase credentials and table setup.');
-            }
-            setLoading(false);
-          };
-          const createAuditLog = async (itemId, action, fieldName, oldValue, newValue) => {
-            if (!supabase || !user) return;
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
             
-            try {
-              const logEntry = {
-                item_id: itemId,
-                user_email: user.email,
-                user_name: user.user_metadata?.full_name || user.email,
-                action: action,
-                field_name: fieldName,
-                old_value: oldValue ? String(oldValue) : null,
-                new_value: newValue ? String(newValue) : null,
-                timestamp: new Date().toISOString()
-              };
+            request.onupgradeneeded = (event) => {
+              const db = event.target.result;
               
-              const { data, error } = await supabase.from('audit_logs').insert([logEntry]).select();
-              
-              if (error) throw error;
-              
-              if (data && data[0]) {
-                setAuditLogs([data[0], ...auditLogs]);
+              if (!db.objectStoreNames.contains('items')) {
+                const itemStore = db.createObjectStore('items', { keyPath: 'id' });
+                itemStore.createIndex('type', 'type', { unique: false });
+                itemStore.createIndex('status', 'status', { unique: false });
+                itemStore.createIndex('projectId', 'projectId', { unique: false });
               }
-            } catch (error) {
-              console.error('Error creating audit log:', error);
-            }
-          };
+              
+              if (!db.objectStoreNames.contains('relationships')) {
+                db.createObjectStore('relationships', { keyPath: 'id' });
+              }
+              
+              if (!db.objectStoreNames.contains('projects')) {
+                db.createObjectStore('projects', { keyPath: 'id' });
+              }
+              
+              if (!db.objectStoreNames.contains('auditLogs')) {
+                const auditStore = db.createObjectStore('auditLogs', { keyPath: 'id' });
+                auditStore.createIndex('itemId', 'itemId', { unique: false });
+                auditStore.createIndex('timestamp', 'timestamp', { unique: false });
+              }
 
+              if (!db.objectStoreNames.contains('testRuns')) {
+                const testRunStore = db.createObjectStore('testRuns', { keyPath: 'id' });
+                testRunStore.createIndex('status', 'status', { unique: false });
+                testRunStore.createIndex('createdAt', 'createdAt', { unique: false });
+              }
 
-          const setupDatabase = async () => {
-            alert(`Please run these SQL commands in your Supabase SQL editor:
+              if (!db.objectStoreNames.contains('testResults')) {
+                const testResultStore = db.createObjectStore('testResults', { keyPath: 'id' });
+                testResultStore.createIndex('runId', 'runId', { unique: false });
+                testResultStore.createIndex('testCaseId', 'testCaseId', { unique: false });
+              }
 
-CREATE TABLE projects (
-  id BIGSERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  pid TEXT NOT NULL UNIQUE,
-  project_manager TEXT,
-  lead_engineer TEXT,
-  created_at TIMESTAMP DEFAULT NOW()
-);
+              if (!db.objectStoreNames.contains('folders')) {
+                const folderStore = db.createObjectStore('folders', { keyPath: 'id' });
+                folderStore.createIndex('parentId', 'parentId', { unique: false });
+              }
+            };
+          });
+        };
 
-CREATE TABLE items (
-  id BIGSERIAL PRIMARY KEY,
-  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
-  type TEXT NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT,
-  rationale TEXT,
-  test_method TEXT,
-  status TEXT NOT NULL,
-  priority TEXT,
-  owner TEXT,
-  version INTEGER DEFAULT 1,
-  parent_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
-  children INTEGER[] DEFAULT '{}',
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
+        const dbOperation = (storeName, mode, operation) => {
+          return initDB().then(db => {
+            return new Promise((resolve, reject) => {
+              const transaction = db.transaction([storeName], mode);
+              const store = transaction.objectStore(storeName);
+              const request = operation(store);
+              
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+          });
+        };
 
-CREATE TABLE relationships (
-  id BIGSERIAL PRIMARY KEY,
-  from_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
-  to_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
-  type TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
-);
+        // Folder Management Component
+        const FolderTree = ({ folders, items, onSelectItem, selectedItemId, onCreateFolder, onDeleteFolder }) => {
+          const [expandedFolders, setExpandedFolders] = useState(new Set());
 
-CREATE TABLE comments (
-  id BIGSERIAL PRIMARY KEY,
-  item_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
-  author TEXT NOT NULL,
-  text TEXT NOT NULL,
-  timestamp TIMESTAMP DEFAULT NOW()
-);
-
-ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE relationships ENABLE ROW LEVEL SECURITY;
-ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Enable all operations" ON projects FOR ALL USING (true);
-CREATE POLICY "Enable all operations" ON items FOR ALL USING (true);
-CREATE POLICY "Enable all operations" ON relationships FOR ALL USING (true);
-CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
-          };
-
-          const toggleExpand = (id) => {
-            setExpandedItems(prev => {
+          const toggleFolder = (folderId) => {
+            setExpandedFolders(prev => {
               const next = new Set(prev);
-              if (next.has(id)) next.delete(id);
-              else next.add(id);
+              if (next.has(folderId)) {
+                next.delete(folderId);
+              } else {
+                next.add(folderId);
+              }
               return next;
             });
           };
 
-          const collapseAll = () => {
-            // Collapse everything - clear the expanded items set
-            setExpandedItems(new Set());
-          };
-
-          const expandToLevel = (targetLevel) => {
-            // Expand all items down to and including the target requirement level
-            const newExpandedItems = new Set();
+          const getFolderTree = () => {
+            const folderMap = new Map();
+            folders.forEach(folder => folderMap.set(folder.id, { ...folder, children: [], items: [] }));
             
-            // Helper function to determine if an item should be expanded based on target level
-            const shouldExpand = (item) => {
-              // Always expand epics and non-requirement types if they have children
-              if (item.type !== 'requirement') {
-                return item.children && item.children.length > 0;
+            const rootFolders = [];
+            folders.forEach(folder => {
+              const node = folderMap.get(folder.id);
+              if (folder.parentId) {
+                const parent = folderMap.get(folder.parentId);
+                if (parent) parent.children.push(node);
+              } else {
+                rootFolders.push(node);
               }
-              
-              // For requirements, check if this level is at or above the target level
-              const itemLevel = requirementLevels.indexOf(item.level || 'system');
-              const targetLevelIndex = requirementLevels.indexOf(targetLevel);
-              
-              // Expand if this requirement is at or above the target level and has children
-              return itemLevel <= targetLevelIndex && item.children && item.children.length > 0;
-            };
-            
-            // Recursively process items to determine what should be expanded
-            const processItem = (item) => {
-              if (shouldExpand(item)) {
-                newExpandedItems.add(item.id);
-                // Recursively process children
-                if (item.children) {
-                  item.children.forEach(childId => {
-                    const childItem = items.find(i => i.id === childId);
-                    if (childItem) processItem(childItem);
-                  });
-                }
-              }
-            };
-            
-            // Start with root items
-            items.filter(item => !item.parent_id).forEach(processItem);
-            
-            setExpandedItems(newExpandedItems);
-          };
-
-          
-          const refreshSelectedItem = async () => {
-            if (!selectedItem || !supabase) return;
-            
-            try {
-              const { data, error } = await supabase
-                .from('items')
-                .select('*')
-                .eq('id', selectedItem.id)
-                .single();
-              
-              if (error) throw error;
-              
-              if (data) {
-                setSelectedItem(data);
-                setItems(prev => prev.map(i => i.id === data.id ? data : i));
-                setEditingItem(null); // Close edit mode to show updated view
-              }
-            } catch (error) {
-              console.error('Error refreshing item:', error);
-            }
-          };
-
-          
-          const handleUpdateParent = async (itemId, newParentId) => {
-            if (!supabase) return;
-            
-            try {
-              // Get fresh data from database to ensure we have current state
-              const { data: currentItem } = await supabase
-                .from('items')
-                .select('*')
-                .eq('id', itemId)
-                .single();
-              
-              if (!currentItem) return;
-              
-              // Remove from old parent's children array
-              if (currentItem.parent_id) {
-                const { data: oldParent } = await supabase
-                  .from('items')
-                  .select('*')
-                  .eq('id', currentItem.parent_id)
-                  .single();
-                
-                if (oldParent) {
-                  const updatedChildren = (oldParent.children || []).filter(id => id !== itemId);
-                  await supabase
-                    .from('items')
-                    .update({ children: updatedChildren })
-                    .eq('id', currentItem.parent_id);
-                }
-              }
-              
-              // Update item's parent_id
-              await supabase
-                .from('items')
-                .update({ parent_id: newParentId })
-                .eq('id', itemId);
-              
-              // Add to new parent's children array
-              if (newParentId) {
-                const { data: newParent } = await supabase
-                  .from('items')
-                  .select('*')
-                  .eq('id', newParentId)
-                  .single();
-                
-                if (newParent) {
-                  const updatedChildren = [...(newParent.children || []), itemId];
-                  await supabase
-                    .from('items')
-                    .update({ children: updatedChildren })
-                    .eq('id', newParentId);
-                }
-              }
-              
-              // Reload all data to get fresh state
-              await loadData(supabase);
-              
-              console.log('Parent updated successfully');
-            } catch (error) {
-              console.error('Error updating parent:', error);
-              alert('Error updating parent. Please refresh the page.');
-            }
-          };
-
-          const handleCreateItem = async (formData) => {            if (!supabase) return;
-            
-            try {
-              const newItem = {
-                  project_id: selectedProject.id,  // <-- ADD THIS LINE!
-                  type: formData.type,
-                  title: formData.title,
-                  description: formData.description,
-                  rationale: formData.rationale || null,
-                  test_method: formData.test_method || null,
-                  status: formData.status,
-                  priority: formData.priority || null,
-                  owner: formData.owner || null,
-                  reviewer_email: formData.reviewer_email || null,
-                  parent_id: formData.parentId,
-                  children: [],
-                  version: 1
-
-              };              const { data, error } = await supabase.from('items').insert([newItem]).select();
-              
-              if (error) throw error;
-              
-              if (data && data[0]) {
-                setItems([...items, data[0]]);
-                
-                // Create relationships if references provided (for test cases)
-                if ((formData.references || formData.relationships) && (formData.references?.length > 0 || formData.relationships?.length > 0)) {
-                  const relationshipsToCreate = formData.references || formData.relationships || [];
-                  for (const rel of relationshipsToCreate) {
-                    const relData = typeof rel === 'number' 
-                      ? { from_id: data[0].id, to_id: rel, type: 'tests' }
-                      : { from_id: data[0].id, to_id: rel.to, type: rel.type };
-                    await supabase.from('relationships').insert([relData]);
-                  }
-                  // Reload relationships
-                  const { data: newRels } = await supabase.from('relationships').select('*');
-                  if (newRels) setRelationships(newRels);
-                }
-                
-                await createAuditLog(data[0].id, 'create', null, null, `Created ${data[0].type}: ${data[0].title}`);
-                
-                if (formData.parentId) {
-                  const parent = items.find(i => i.id === formData.parentId);
-                  if (parent) {
-                    const updatedChildren = [...(parent.children || []), data[0].id];
-                    await supabase.from('items').update({ children: updatedChildren }).eq('id', formData.parentId);
-                    setItems(prev => prev.map(item => 
-                      item.id === formData.parentId 
-                        ? { ...item, children: updatedChildren }
-                        : item
-                    ));
-                  }
-                }
-              }
-              
-              setShowNewItemForm(false);
-              setSelectedItem(data[0]);
-            } catch (error) {
-              console.error('Error creating item:', error);
-              alert('Error creating item: ' + error.message);
-            }
-          };
-
-          const handleUpdateItem = async (id, updates) => {
-            if (!supabase || !user) return;
-            
-            try {
-              const item = items.find(i => i.id === id);
-              
-              // If item is approved and being edited, reset to draft only if content actually changed
-              if (item.status === 'approved' && updates && Object.keys(updates).length > 0) {
-                // Check if any values actually changed
-                const hasRealChanges = Object.keys(updates).some(key => {
-                  // Skip reviewer_email - that doesn't count as content change
-                  if (key === 'reviewer_email') return false;
-                  // Check if the value actually differs
-                  return updates[key] !== item[key];
-                });
-                
-                if (hasRealChanges) {
-                  updates = { ...updates, status: 'draft' };
-                }
-              }
-              
-              // Create audit logs for each changed field
-              for (const [key, newValue] of Object.entries(updates)) {
-                const oldValue = item[key];
-                if (oldValue !== newValue) {
-                  await createAuditLog(id, 'update', key, oldValue, newValue);
-                }
-              }
-              
-              const { error } = await supabase
-                .from('items')
-                .update({ 
-                  ...updates, 
-                  version: item.version + 1,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', id);
-              
-              if (error) throw error;
-              
-              setItems(prev => prev.map(item => 
-                item.id === id 
-                  ? { ...item, ...updates, version: item.version + 1 }
-                  : item
-              ));
-              setEditingItem(null);
-              
-              // IMPROVEMENT #3: Refresh the detail panel after editing to show changes immediately
-              await refreshSelectedItem();
-            } catch (error) {
-              console.error('Error updating item:', error);
-              alert('Error updating item: ' + error.message);
-            }
-          };
-
-          const handleApproveItem = async (itemId, action, notes) => {
-            if (!supabase || !user) return;
-            
-            const item = items.find(i => i.id === itemId);
-            if (!item) return;
-            
-            // Check if user is authorized (reviewer for requirements, tester for test cases)
-            const isAuthorized = (item.type === 'test-case' && item.tester_email === user.email) ||
-                                 (item.type !== 'test-case' && item.reviewer_email === user.email);
-            
-            if (!isAuthorized) {
-              const role = item.type === 'test-case' ? 'tester' : 'reviewer';
-              alert(`Only the assigned ${role} can perform this action.`);
-              return;
-            }
-            
-            try {
-              // Determine new status based on action
-              let newStatus;
-              if (action === 'approve') {
-                newStatus = 'approved';
-              } else if (action === 'reject') {
-                newStatus = 'draft'; // Rejected items return to draft for revision
-              } else if (action === 'pass') {
-                newStatus = 'passed';
-              } else if (action === 'fail') {
-                newStatus = 'failed'; // Failed tests get failed status for visibility
-              }
-              
-              await createAuditLog(itemId, action, 'status', item.status, newStatus);
-              if (notes) {
-                const noteType = item.type === 'test-case' ? 'test_notes' : 'review_notes';
-                await createAuditLog(itemId, noteType, null, null, notes);
-              }
-              
-              const { error } = await supabase
-                .from('items')
-                .update({ 
-                  status: newStatus,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', itemId);
-              
-              if (error) throw error;
-              
-              setItems(prev => prev.map(i => 
-                i.id === itemId 
-                  ? { ...i, status: newStatus }
-                  : i
-              ));
-              
-              await refreshSelectedItem();
-              
-              setShowApprovalModal(false);
-              setApprovalNotes('');
-            } catch (error) {
-              console.error('Error processing action:', error);
-              alert('Error processing action: ' + error.message);
-            }
-          };
-
-          const handleDeleteItem = async (id) => {
-            if (!supabase) return;
-            
-            try {
-              const item = items.find(i => i.id === id);
-              
-              if (item.parent_id) {
-                const parent = items.find(i => i.id === item.parent_id);
-                if (parent) {
-                  const updatedChildren = parent.children.filter(c => c !== id);
-                  await supabase.from('items').update({ children: updatedChildren }).eq('id', item.parent_id);
-                }
-              }
-              
-              const { error } = await supabase.from('items').delete().eq('id', id);
-              
-              if (error) throw error;
-              
-              setItems(prev => prev.filter(i => i.id !== id));
-              setRelationships(prev => prev.filter(r => r.from_id !== id && r.to_id !== id));
-              setSelectedItem(null);
-            } catch (error) {
-              console.error('Error deleting item:', error);
-              alert('Error deleting item: ' + error.message);
-            }
-          };
-
-const handleCreateProject = async (projectData) => {
-  if (!supabase || !user) return;
-  
-  try {    const { data, error } = await supabase.from('projects').insert([projectData]).select();
-    
-    if (error) throw error;
-    
-    if (data && data[0]) {      setProjects([...projects, data[0]]);
-      setSelectedProject(data[0]);    }
-    
-    setShowProjectForm(false);
-  } catch (error) {
-    console.error('Error creating project:', error);
-    alert('Error creating project: ' + error.message);
-  }
-};
-
-          const handleAddComment = async (itemId) => {
-            if (!supabase || !newComment.trim() || !user) return;
-            
-            try {
-              const comment = {
-                item_id: itemId,
-                author: user.user_metadata?.full_name || user.email,
-                author_email: user.email,
-                text: newComment,
-                timestamp: new Date().toISOString()
-              };
-              
-              const { data, error } = await supabase.from('comments').insert([comment]).select();
-              
-              if (error) throw error;
-              
-              if (data && data[0]) {
-                setComments([data[0], ...comments]);
-              }
-              setNewComment('');
-              
-              await createAuditLog(itemId, 'comment', null, null, newComment);
-            } catch (error) {
-              console.error('Error adding comment:', error);
-              alert('Error adding comment: ' + error.message);
-            }
-          };
-
-          const handleAddRelationship = async (from, to, type) => {
-            if (!supabase) return;
-            
-            try {
-              const relationship = {
-                from_id: from,
-                to_id: to,
-                type: type
-              };
-              
-              const { data, error } = await supabase.from('relationships').insert([relationship]).select();
-              
-              if (error) throw error;
-              
-              if (data && data[0]) {
-                setRelationships([...relationships, data[0]]);
-              }
-              setShowRelationshipForm(false);
-            } catch (error) {
-              console.error('Error adding relationship:', error);
-              alert('Error adding relationship: ' + error.message);
-            }
-          };
-
-          const handleDeleteRelationship = async (relationshipId) => {
-            if (!supabase) return;
-            
-            try {
-              const { error } = await supabase.from('relationships').delete().eq('id', relationshipId);
-              
-              if (error) throw error;
-              
-              setRelationships(prev => prev.filter(r => r.id !== relationshipId));
-            } catch (error) {
-              console.error('Error deleting relationship:', error);
-              alert('Error deleting relationship: ' + error.message);
-            }
-          };
-
-          const downloadCSVTemplate = () => {
-            // Create a template CSV with headers and example rows
-            const headers = ['type', 'title', 'description', 'rationale', 'test_method', 'status', 'priority', 'owner', 'level', 'reviewer_email', 'tester_email'];
-            const exampleRows = [
-              ['requirement', 'System shall support user authentication', 'The system must authenticate users via username and password', 'Security requirement to protect user data', '', 'draft', 'high', 'john@example.com', 'system', 'jane@example.com', ''],
-              ['requirement', 'Login page shall timeout after 15 minutes', 'For security, idle sessions must timeout', 'Prevents unauthorized access to unattended sessions', '', 'draft', 'medium', 'john@example.com', 'sub-system', 'jane@example.com', ''],
-              ['test-case', 'Verify login with valid credentials', 'Test that user can log in with correct username and password', '', 'Manual test: Enter valid credentials and verify successful login', 'draft', 'high', 'sarah@example.com', '', '', 'sarah@example.com'],
-              ['epic', 'User Authentication Feature', 'Epic to group all authentication-related requirements', '', '', 'draft', 'high', 'john@example.com', '', '', '']
-            ];
-            
-            // Convert to CSV format
-            const csvContent = [
-              headers.join(','),
-              ...exampleRows.map(row => row.map(cell => {
-                // Escape cells that contain commas or quotes
-                if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
-                  return '"' + cell.replace(/"/g, '""') + '"';
-                }
-                return cell;
-              }).join(','))
-            ].join('\n');
-            
-            // Create download link
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', 'requirements_import_template.csv');
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          };
-
-          const handleImportCSV = async (file) => {
-            if (!file || !supabase || !selectedProject) return;
-            
-            try {
-              const text = await file.text();
-              const lines = text.split('\n').filter(line => line.trim());
-              
-              if (lines.length < 2) {
-                alert('CSV file is empty or invalid');
-                return;
-              }
-              
-              // Parse header
-              const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-              
-              // Parse rows
-              const rows = [];
-              for (let i = 1; i < lines.length; i++) {
-                const line = lines[i];
-                const values = [];
-                let current = '';
-                let inQuotes = false;
-                
-                for (let j = 0; j < line.length; j++) {
-                  const char = line[j];
-                  
-                  if (char === '"') {
-                    if (inQuotes && line[j + 1] === '"') {
-                      current += '"';
-                      j++;
-                    } else {
-                      inQuotes = !inQuotes;
-                    }
-                  } else if (char === ',' && !inQuotes) {
-                    values.push(current.trim());
-                    current = '';
-                  } else {
-                    current += char;
-                  }
-                }
-                values.push(current.trim());
-                
-                if (values.length === headers.length) {
-                  const row = {};
-                  headers.forEach((header, idx) => {
-                    row[header] = values[idx];
-                  });
-                  rows.push(row);
-                }
-              }
-              
-              if (rows.length === 0) {
-                alert('No valid data rows found in CSV');
-                return;
-              }
-              
-              // Validate and import each row
-              let successCount = 0;
-              let errorCount = 0;
-              const errors = [];
-              
-              for (const row of rows) {
-                try {
-                  // Validate required fields
-                  if (!row.type || !row.title) {
-                    errors.push(`Row skipped: Missing type or title - "${row.title || 'untitled'}"`);
-                    errorCount++;
-                    continue;
-                  }
-                  
-                  // Validate type
-                  if (!itemTypes.includes(row.type)) {
-                    errors.push(`Row skipped: Invalid type "${row.type}" for "${row.title}"`);
-                    errorCount++;
-                    continue;
-                  }
-                  
-                  // Build item object
-                  const newItem = {
-                    project_id: selectedProject.id,
-                    type: row.type,
-                    title: row.title,
-                    description: row.description || '',
-                    status: row.status || 'draft',
-                    version: 1
-                  };
-                  
-                  // Add optional fields based on type
-                  if (row.priority) newItem.priority = row.priority;
-                  if (row.owner) newItem.owner = row.owner;
-                  if (row.rationale && row.type === 'requirement') newItem.rationale = row.rationale;
-                  if (row.test_method && row.type === 'test-case') newItem.test_method = row.test_method;
-                  if (row.level && row.type === 'requirement') newItem.level = row.level;
-                  if (row.reviewer_email && (row.type === 'requirement' || row.type === 'epic')) {
-                    newItem.reviewer_email = row.reviewer_email;
-                  }
-                  if (row.tester_email && row.type === 'test-case') {
-                    newItem.tester_email = row.tester_email;
-                  }
-                  
-                  // Insert into database
-                  const { data, error } = await supabase.from('items').insert([newItem]).select();
-                  
-                  if (error) throw error;
-                  
-                  if (data && data[0]) {
-                    setItems(prev => [...prev, data[0]]);
-                    await createAuditLog(data[0].id, 'create', null, null, `Imported ${data[0].type}: ${data[0].title}`);
-                    successCount++;
-                  }
-                } catch (error) {
-                  errors.push(`Error importing "${row.title}": ${error.message}`);
-                  errorCount++;
-                }
-              }
-              
-              // Show results
-              let message = `Import complete!\n\n`;
-              message += `✓ Successfully imported: ${successCount} items\n`;
-              if (errorCount > 0) {
-                message += `✗ Failed: ${errorCount} items\n\n`;
-                if (errors.length > 0) {
-                  message += `Errors:\n${errors.slice(0, 5).join('\n')}`;
-                  if (errors.length > 5) {
-                    message += `\n... and ${errors.length - 5} more errors`;
-                  }
-                }
-              }
-              
-              alert(message);
-              setShowImportModal(false);
-              setImportFile(null);
-              
-            } catch (error) {
-              console.error('Error importing CSV:', error);
-              alert('Error importing CSV: ' + error.message);
-            }
-          };
-
-          const getItemRelationships = (itemId) => {
-            return {
-              outgoing: relationships.filter(r => r.from_id === itemId),
-              incoming: relationships.filter(r => r.to_id === itemId),
-            };
-          };
-
-          const reportData = useMemo(() => {
-            // Get all unique statuses actually used in the data
-            const allStatuses = [...new Set(items.map(i => i.status))];
-            
-            const statusByType = {};
-            itemTypes.forEach(type => {
-              statusByType[type] = {};
-              allStatuses.forEach(status => {
-                statusByType[type][status] = items.filter(i => i.type === type && i.status === status).length;
-              });
             });
 
-            const priorityDist = {};
-            priorities.forEach(priority => {
-              priorityDist[priority] = items.filter(i => i.priority === priority).length;
-            });
-
-            const statusDist = {};
-            allStatuses.forEach(status => {
-              statusDist[status] = items.filter(i => i.status === status).length;
-            });
-
-            const typeDist = {};
-            itemTypes.forEach(type => {
-              typeDist[type] = items.filter(i => i.type === type).length;
-            });
-
-            const requirements = items.filter(i => i.type === 'requirement');
-            const testCases = items.filter(i => i.type === 'test-case');
-            const requirementsWithTests = requirements.filter(req => 
-              relationships.some(r => r.to_id === req.id && items.find(i => i.id === r.from_id && i.type === 'test-case'))
-            ).length;
-            
-            const testCoverage = requirements.length > 0 ? (requirementsWithTests / requirements.length * 100).toFixed(1) : 0;
-
-            const itemsWithRelationships = new Set([...relationships.map(r => r.from_id), ...relationships.map(r => r.to_id)]).size;
-            const traceabilityScore = items.length > 0 ? (itemsWithRelationships / items.length * 100).toFixed(1) : 0;
-
-            const ownerWorkload = {};
             items.forEach(item => {
-              if (item.owner) {
-                ownerWorkload[item.owner] = (ownerWorkload[item.owner] || 0) + 1;
+              if (item.folderId) {
+                const folder = folderMap.get(item.folderId);
+                if (folder) folder.items.push(item);
               }
             });
 
-            return {
-              statusByType,
-              priorityDist,
-              statusDist,
-              typeDist,
-              testCoverage,
-              traceabilityScore,
-              ownerWorkload,
-              totalItems: items.length,
-              totalRelationships: relationships.length,
-              totalComments: comments.length,
-              allStatuses
-            };
-          }, [items, relationships, comments]);
+            return rootFolders;
+          };
 
-          const ProjectForm = ({ onSave, onCancel }) => {
-            const [formData, setFormData] = useState({
-              name: '',
-              pid: '',
-              project_manager: '',
-              lead_engineer: ''
-            });
+          const renderFolder = (folder) => {
+            const isExpanded = expandedFolders.has(folder.id);
+            const hasChildren = folder.children.length > 0 || folder.items.length > 0;
 
-            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
-              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
-                h('h3', { className: 'text-xl font-bold mb-4' }, 'New Project'),
-                h('div', { className: 'space-y-4' },
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Project Name'),
-                    h('input', {
-                      type: 'text',
-                      value: formData.name,
-                      onChange: (e) => setFormData({ ...formData, name: e.target.value }),
-                      placeholder: 'e.g., Mobile App v2.0',
-                      className: 'w-full border rounded px-3 py-2'
-                    })
-                  ),
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Project ID (PID)'),
-                    h('input', {
-                      type: 'text',
-                      value: formData.pid,
-                      onChange: (e) => setFormData({ ...formData, pid: e.target.value }),
-                      placeholder: 'e.g., MOB-2',
-                      className: 'w-full border rounded px-3 py-2'
-                    })
-                  ),
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Project Manager'),
-                    h('input', {
-                      type: 'text',
-                      value: formData.project_manager,
-                      onChange: (e) => setFormData({ ...formData, project_manager: e.target.value }),
-                      className: 'w-full border rounded px-3 py-2'
-                    })
-                  ),
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Lead Engineer'),
-                    h('input', {
-                      type: 'text',
-                      value: formData.lead_engineer,
-                      onChange: (e) => setFormData({ ...formData, lead_engineer: e.target.value }),
-                      className: 'w-full border rounded px-3 py-2'
-                    })
+            return h('div', { key: folder.id, className: 'mb-1' },
+              h('div', {
+                className: `folder-item flex items-center gap-2 px-3 py-2 rounded ${isExpanded ? 'folder-expanded' : ''}`,
+                onClick: () => hasChildren && toggleFolder(folder.id)
+              },
+                hasChildren && (isExpanded ? h(ChevronDown, { size: 16 }) : h(ChevronRight, { size: 16 })),
+                h(isExpanded ? FolderOpen : Folder, { size: 16 }),
+                h('span', { className: 'flex-1' }, folder.name),
+                h('span', { className: 'text-xs text-gray-500' }, folder.items.length)
+              ),
+              isExpanded && hasChildren && h('div', { className: 'folder-children' },
+                folder.children.map(child => renderFolder(child)),
+                folder.items.map(item => 
+                  h('div', {
+                    key: item.id,
+                    className: `flex items-center gap-2 px-3 py-2 rounded cursor-pointer hover:bg-gray-100 ${selectedItemId === item.id ? 'bg-blue-50 text-blue-600' : ''}`,
+                    onClick: () => onSelectItem(item)
+                  },
+                    h(getIconForType(item.type), { size: 14 }),
+                    h('span', { className: 'text-sm truncate flex-1' }, item.title),
+                    h('span', { className: `status-badge status-${item.status.toLowerCase()}` }, item.status)
                   )
-                ),
-                h('div', { className: 'flex gap-2 mt-6' },
-                  h('button', {
-                    onClick: () => onSave(formData),
-                    disabled: !formData.name || !formData.pid,
-                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:bg-gray-300'
-                  }, 'Create Project'),
-                  h('button', {
-                    onClick: onCancel,
-                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
-                  }, 'Cancel')
                 )
               )
             );
           };
 
-          const ProjectSelector = () => {
-            const filteredProjects = projects.filter(p => 
-              projectSearchTerm === '' || 
-              p.name.toLowerCase().includes(projectSearchTerm.toLowerCase()) ||
-              p.pid.toLowerCase().includes(projectSearchTerm.toLowerCase())
-            );
+          const getIconForType = (type) => {
+            switch (type) {
+              case 'epic': return Target;
+              case 'requirement': return FileText;
+              case 'test_case': return CheckSquare;
+              case 'defect': return AlertCircle;
+              default: return FileText;
+            }
+          };
 
-            return h('div', { className: 'relative' },
-              h('button', {
-                onClick: () => setShowProjectDropdown(!showProjectDropdown),
-                className: 'bg-fresh-700 text-white px-4 py-2 rounded hover:bg-fresh-800 flex items-center gap-2 min-w-[200px]'
-              },
-                h('span', { className: 'flex-1 text-left truncate' }, 
-                  selectedProject ? `${selectedProject.pid} - ${selectedProject.name}` : 'Select Project'
-                ),
-                h(ChevronDown, { size: 16 })
+          const unorganizedItems = items.filter(item => !item.folderId);
+          const tree = getFolderTree();
+
+          return h('div', { className: 'h-full overflow-y-auto' },
+            tree.map(folder => renderFolder(folder)),
+            unorganizedItems.length > 0 && h('div', { className: 'mt-4 border-t pt-4' },
+              h('div', { className: 'px-3 py-2 text-sm font-semibold text-gray-500' }, 'Unorganized'),
+              unorganizedItems.map(item =>
+                h('div', {
+                  key: item.id,
+                  className: `flex items-center gap-2 px-3 py-2 rounded cursor-pointer hover:bg-gray-100 ${selectedItemId === item.id ? 'bg-blue-50 text-blue-600' : ''}`,
+                  onClick: () => onSelectItem(item)
+                },
+                  h(getIconForType(item.type), { size: 14 }),
+                  h('span', { className: 'text-sm truncate flex-1' }, item.title),
+                  h('span', { className: `status-badge status-${item.status.toLowerCase()}` }, item.status)
+                )
+              )
+            )
+          );
+        };
+
+        // Test Run Components
+        const TestRunCard = ({ run, onClick }) => {
+          const getStatusColor = (status) => {
+            switch (status) {
+              case 'completed': return 'bg-green-100 text-green-800';
+              case 'in_progress': return 'bg-blue-100 text-blue-800';
+              case 'planned': return 'bg-gray-100 text-gray-800';
+              default: return 'bg-gray-100 text-gray-800';
+            }
+          };
+
+          const calculateProgress = () => {
+            const total = run.totalTests || 0;
+            const completed = (run.passed || 0) + (run.failed || 0) + (run.blocked || 0);
+            return total > 0 ? (completed / total) * 100 : 0;
+          };
+
+          return h('div', {
+            className: 'test-run-card bg-white rounded-lg shadow p-4 cursor-pointer border border-gray-200',
+            onClick
+          },
+            h('div', { className: 'flex items-start justify-between mb-3' },
+              h('div', { className: 'flex-1' },
+                h('h3', { className: 'font-semibold text-lg mb-1' }, run.name),
+                h('p', { className: 'text-sm text-gray-600' }, run.description)
               ),
-              showProjectDropdown && h('div', {
-                className: 'absolute top-full mt-1 left-0 bg-white border rounded-lg shadow-lg w-80 max-h-96 overflow-hidden z-50'
-              },
-                h('div', { className: 'p-2 border-b sticky top-0 bg-white' },
-                  h('input', {
-                    type: 'text',
-                    placeholder: 'Search projects...',
-                    value: projectSearchTerm,
-                    onChange: (e) => setProjectSearchTerm(e.target.value),
-                    className: 'w-full border rounded px-3 py-2',
-                    autoFocus: true
+              h('span', { className: `px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(run.status)}` }, 
+                run.status.replace('_', ' ').toUpperCase()
+              )
+            ),
+            h('div', { className: 'space-y-2' },
+              h('div', { className: 'progress-bar' },
+                h('div', {
+                  className: 'progress-fill bg-blue-500',
+                  style: { width: `${calculateProgress()}%` }
+                })
+              ),
+              h('div', { className: 'grid grid-cols-4 gap-2 text-center text-sm' },
+                h('div', {},
+                  h('div', { className: 'font-semibold text-gray-700' }, run.totalTests || 0),
+                  h('div', { className: 'text-xs text-gray-500' }, 'Total')
+                ),
+                h('div', {},
+                  h('div', { className: 'font-semibold text-green-600' }, run.passed || 0),
+                  h('div', { className: 'text-xs text-gray-500' }, 'Passed')
+                ),
+                h('div', {},
+                  h('div', { className: 'font-semibold text-red-600' }, run.failed || 0),
+                  h('div', { className: 'text-xs text-gray-500' }, 'Failed')
+                ),
+                h('div', {},
+                  h('div', { className: 'font-semibold text-yellow-600' }, run.blocked || 0),
+                  h('div', { className: 'text-xs text-gray-500' }, 'Blocked')
+                )
+              ),
+              h('div', { className: 'flex items-center justify-between text-xs text-gray-500 mt-2 pt-2 border-t' },
+                h('span', {}, `Created: ${new Date(run.createdAt).toLocaleDateString()}`),
+                run.completedAt && h('span', {}, `Completed: ${new Date(run.completedAt).toLocaleDateString()}`)
+              )
+            )
+          );
+        };
+
+        const TestRunExecution = ({ run, testCases, results, onUpdateResult, onClose }) => {
+          const [currentIndex, setCurrentIndex] = useState(0);
+          const [notes, setNotes] = useState('');
+          const [filter, setFilter] = useState('all');
+
+          const currentTestCase = testCases[currentIndex];
+          const currentResult = results.find(r => r.testCaseId === currentTestCase?.id);
+
+          const handleStatusUpdate = (status) => {
+            if (currentTestCase) {
+              onUpdateResult(currentTestCase.id, status, notes);
+              setNotes('');
+              if (currentIndex < testCases.length - 1) {
+                setCurrentIndex(currentIndex + 1);
+              }
+            }
+          };
+
+          const filteredCases = useMemo(() => {
+            if (filter === 'all') return testCases;
+            const statusMap = { pending: null, pass: 'pass', fail: 'fail', block: 'block' };
+            return testCases.filter(tc => {
+              const result = results.find(r => r.testCaseId === tc.id);
+              return filter === 'pending' ? !result : result?.status === statusMap[filter];
+            });
+          }, [filter, testCases, results]);
+
+          const stats = useMemo(() => {
+            const passed = results.filter(r => r.status === 'pass').length;
+            const failed = results.filter(r => r.status === 'fail').length;
+            const blocked = results.filter(r => r.status === 'block').length;
+            const pending = testCases.length - results.length;
+            return { passed, failed, blocked, pending };
+          }, [results, testCases]);
+
+          return h('div', { className: 'modal-overlay', onClick: onClose },
+            h('div', {
+              className: 'modal-content w-full max-w-4xl p-6',
+              onClick: (e) => e.stopPropagation()
+            },
+              h('div', { className: 'flex items-center justify-between mb-6' },
+                h('h2', { className: 'text-2xl font-bold' }, run.name),
+                h('button', {
+                  onClick: onClose,
+                  className: 'text-gray-400 hover:text-gray-600'
+                }, h(X, { size: 24 }))
+              ),
+              
+              h('div', { className: 'grid grid-cols-4 gap-4 mb-6' },
+                h('div', { className: 'bg-gray-50 p-4 rounded-lg' },
+                  h('div', { className: 'text-2xl font-bold text-gray-700' }, stats.pending),
+                  h('div', { className: 'text-sm text-gray-500' }, 'Pending')
+                ),
+                h('div', { className: 'bg-green-50 p-4 rounded-lg' },
+                  h('div', { className: 'text-2xl font-bold text-green-600' }, stats.passed),
+                  h('div', { className: 'text-sm text-gray-500' }, 'Passed')
+                ),
+                h('div', { className: 'bg-red-50 p-4 rounded-lg' },
+                  h('div', { className: 'text-2xl font-bold text-red-600' }, stats.failed),
+                  h('div', { className: 'text-sm text-gray-500' }, 'Failed')
+                ),
+                h('div', { className: 'bg-yellow-50 p-4 rounded-lg' },
+                  h('div', { className: 'text-2xl font-bold text-yellow-600' }, stats.blocked),
+                  h('div', { className: 'text-sm text-gray-500' }, 'Blocked')
+                )
+              ),
+
+              h('div', { className: 'mb-4 flex gap-2' },
+                ['all', 'pending', 'pass', 'fail', 'block'].map(f =>
+                  h('button', {
+                    key: f,
+                    onClick: () => setFilter(f),
+                    className: `px-4 py-2 rounded ${filter === f ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`
+                  }, f.charAt(0).toUpperCase() + f.slice(1))
+                )
+              ),
+
+              currentTestCase && h('div', { className: 'bg-white border rounded-lg p-6 mb-6' },
+                h('div', { className: 'flex items-start justify-between mb-4' },
+                  h('div', { className: 'flex-1' },
+                    h('h3', { className: 'text-xl font-semibold mb-2' }, currentTestCase.title),
+                    h('p', { className: 'text-gray-600 mb-4' }, currentTestCase.description)
+                  ),
+                  currentResult && h('span', {
+                    className: `status-badge status-${currentResult.status}`
+                  }, currentResult.status.toUpperCase())
+                ),
+
+                currentTestCase.preconditions && h('div', { className: 'mb-4' },
+                  h('h4', { className: 'font-semibold mb-2' }, 'Preconditions:'),
+                  h('p', { className: 'text-gray-700' }, currentTestCase.preconditions)
+                ),
+
+                currentTestCase.steps && h('div', { className: 'mb-4' },
+                  h('h4', { className: 'font-semibold mb-2' }, 'Test Steps:'),
+                  h('ol', { className: 'list-decimal list-inside space-y-1' },
+                    currentTestCase.steps.split('\n').map((step, i) =>
+                      h('li', { key: i, className: 'text-gray-700' }, step)
+                    )
+                  )
+                ),
+
+                currentTestCase.expected && h('div', { className: 'mb-4' },
+                  h('h4', { className: 'font-semibold mb-2' }, 'Expected Result:'),
+                  h('p', { className: 'text-gray-700' }, currentTestCase.expected)
+                ),
+
+                h('div', { className: 'mb-4' },
+                  h('label', { className: 'block text-sm font-medium mb-2' }, 'Execution Notes:'),
+                  h('textarea', {
+                    value: notes,
+                    onChange: (e) => setNotes(e.target.value),
+                    className: 'w-full border rounded p-2 h-24',
+                    placeholder: 'Add any notes about this test execution...'
                   })
                 ),
-                h('div', { className: 'max-h-64 overflow-y-auto' },
-                  ...filteredProjects.map(project =>
-                    h('button', {
-                      key: project.id,
-                      onClick: () => {
-                        setSelectedProject(project);
-                setSelectedItem(null);
-                setEditingItem(null);
-                        setShowProjectDropdown(false);
-                        setProjectSearchTerm('');
-                      },
-                      className: `w-full text-left px-4 py-3 hover:bg-gray-50 border-b ${selectedProject?.id === project.id ? 'bg-fresh-50' : ''}`
-                    },
-                      h('div', { className: 'font-medium' }, project.name),
-                      h('div', { className: 'text-sm text-gray-500' }, `PID: ${project.pid}`),
-                      project.project_manager && h('div', { className: 'text-xs text-gray-400 mt-1' }, 
-                        `PM: ${project.project_manager}${project.lead_engineer ? ` | LE: ${project.lead_engineer}` : ''}`
-                      )
-                    )
-                  ),
-                  filteredProjects.length === 0 && h('div', { className: 'px-4 py-3 text-gray-500 text-sm' }, 
-                    'No projects found'
-                  )
-                ),
-                h('button', {
-                  onClick: () => {
-                    setShowProjectForm(true);
-                    setShowProjectDropdown(false);
-                    setProjectSearchTerm('');
-                  },
-                  className: 'w-full px-4 py-3 bg-fresh-50 text-fresh-700 hover:bg-fresh-100 font-medium border-t flex items-center justify-center gap-2'
-                },
-                  h(Plus, { size: 16 }),
-                  ' New Project'
-                )
-              )
-            );
-          };
 
-          const AuditLogViewer = ({ itemId }) => {
-            const itemLogs = auditLogs.filter(log => log.item_id === itemId);
-            
-            if (itemLogs.length === 0) return null;
-
-            return h('div', { className: 'border-t pt-4 mt-4' },
-              h('button', {
-                onClick: () => setShowAuditHistory(!showAuditHistory),
-                className: 'flex items-center gap-2 font-semibold text-gray-700 hover:text-gray-900 mb-3'
-              },
-                h(showAuditHistory ? ChevronDown : ChevronRight, { size: 20 }),
-                'Audit History',
-                h('span', { className: 'text-sm font-normal text-gray-500 ml-1' }, `(${itemLogs.length})`)
-              ),
-              showAuditHistory && h('div', { className: 'space-y-2 pl-7' },
-                ...itemLogs.map(log =>
-                  h('div', { key: log.id, className: 'text-sm p-3 bg-gray-50 rounded border-l-2 border-fresh-500' },
-                    h('div', { className: 'flex justify-between items-start mb-1' },
-                      h('span', { className: 'font-medium text-gray-900' }, log.user_name),
-                      h('span', { className: 'text-xs text-gray-500' }, 
-                        new Date(log.timestamp).toLocaleString()
-                      )
-                    ),
-                    h('div', { className: 'text-gray-700' },
-                      log.action === 'create' ? `Created ${log.new_value}` :
-                      log.action === 'approve' ? '✓ Approved this item' :
-                      log.action === 'reject' ? '✗ Rejected this item' :
-                      log.action === 'review_notes' ? `Review notes: ${log.new_value}` :
-                      log.action === 'comment' ? `Added comment: ${log.new_value}` :
-                      log.action === 'update' && log.field_name 
-                        ? `Changed ${log.field_name}: "${log.old_value}" → "${log.new_value}"`
-                        : `${log.action} ${log.field_name || ''}`
-                    )
-                  )
-                )
-              )
-            );
-          };
-
-          const AuthPrompt = () => {
-            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
-              h('div', { className: 'bg-white rounded-lg p-8 w-full max-w-md text-center' },
-                h('img', { 
-                  src: './Fresh logo - Suisse.png', 
-                  alt: 'Fresh Consulting',
-                  className: 'h-12 mx-auto mb-6'
-                }),
-                h('h2', { className: 'text-2xl font-bold mb-4' }, 'Sign In Required'),
-                h('p', { className: 'text-gray-600 mb-6' }, 
-                  'Please sign in with your Google account to access the Requirements Management System.'
-                ),
-                h('button', {
-                  onClick: handleGoogleSignIn,
-                  className: 'w-full bg-white border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-3 font-medium'
-                },
-                  h('svg', { width: 20, height: 20, viewBox: '0 0 24 24' },
-                    h('path', {
-                      fill: '#4285F4',
-                      d: 'M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z'
-                    }),
-                    h('path', {
-                      fill: '#34A853',
-                      d: 'M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z'
-                    }),
-                    h('path', {
-                      fill: '#FBBC05',
-                      d: 'M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z'
-                    }),
-                    h('path', {
-                      fill: '#EA4335',
-                      d: 'M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z'
-                    })
-                  ),
-                  ' Sign in with Google'
-                )
-              )
-            );
-          };
-
-          
-          
-          const LevelConfirmModal = ({ suggestedLevel, currentLevel, onAccept, onReject, onClose }) => {
-            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]' },
-              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
-                h('h3', { className: 'text-xl font-bold mb-4' }, 'Requirement Level Suggestion'),
-                h('p', { className: 'mb-4 text-gray-700' }, 
-                  `The parent requirement is at "${currentLevel}". The derived requirement should typically be at "${suggestedLevel}".`
-                ),
-                h('p', { className: 'mb-6 text-gray-600' }, 
-                  'Which level would you like to use?'
-                ),
                 h('div', { className: 'flex gap-3' },
                   h('button', {
-                    onClick: onAccept,
-                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 font-medium'
-                  }, `Use "${suggestedLevel}"`),
+                    onClick: () => handleStatusUpdate('pass'),
+                    className: 'flex-1 bg-green-500 text-white px-4 py-3 rounded font-semibold hover:bg-green-600 flex items-center justify-center gap-2'
+                  }, h(CheckCircle, { size: 20 }), 'Pass'),
                   h('button', {
-                    onClick: onReject,
-                    className: 'flex-1 bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 font-medium'
-                  }, `Keep "${formData.level || 'system'}"`),
+                    onClick: () => handleStatusUpdate('fail'),
+                    className: 'flex-1 bg-red-500 text-white px-4 py-3 rounded font-semibold hover:bg-red-600 flex items-center justify-center gap-2'
+                  }, h(XCircle, { size: 20 }), 'Fail'),
                   h('button', {
-                    onClick: onClose,
-                    className: 'bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
-                  }, 'Cancel')
+                    onClick: () => handleStatusUpdate('block'),
+                    className: 'flex-1 bg-yellow-500 text-white px-4 py-3 rounded font-semibold hover:bg-yellow-600 flex items-center justify-center gap-2'
+                  }, h(Clock, { size: 20 }), 'Block')
                 )
+              ),
+
+              h('div', { className: 'flex items-center justify-between mt-6 pt-4 border-t' },
+                h('button', {
+                  onClick: () => setCurrentIndex(Math.max(0, currentIndex - 1)),
+                  disabled: currentIndex === 0,
+                  className: 'px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50'
+                }, 'Previous'),
+                h('span', { className: 'text-sm text-gray-600' },
+                  `${currentIndex + 1} of ${testCases.length}`
+                ),
+                h('button', {
+                  onClick: () => setCurrentIndex(Math.min(testCases.length - 1, currentIndex + 1)),
+                  disabled: currentIndex === testCases.length - 1,
+                  className: 'px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50'
+                }, 'Next')
               )
-            );
+            )
+          );
+        };
+
+        const NewTestRunForm = ({ testCases, onSave, onCancel }) => {
+          const [name, setName] = useState('');
+          const [description, setDescription] = useState('');
+          const [selectedTests, setSelectedTests] = useState(new Set());
+
+          const handleSubmit = (e) => {
+            e.preventDefault();
+            if (name.trim() && selectedTests.size > 0) {
+              onSave({
+                name: name.trim(),
+                description: description.trim(),
+                testCaseIds: Array.from(selectedTests)
+              });
+            }
           };
 
-          const ApprovalModal = () => {
-            if (!selectedItem) return null;
-            
-            const notesRef = useRef(null);
-            const isTestCase = selectedItem.type === 'test-case';
-            
-            // Determine labels based on item type
-            const modalTitle = isTestCase ? 'Test Execution Result' : 'Review Item';
-            const action1 = isTestCase ? 'pass' : 'approve';
-            const action2 = isTestCase ? 'fail' : 'reject';
-            const action1Label = isTestCase ? 'Pass' : 'Approve';
-            const action2Label = isTestCase ? 'Fail' : 'Reject';
-            const notesPlaceholder = isTestCase 
-              ? 'Add test execution notes, observations, or issues found...'
-              : 'Add any comments about your decision...';
-            
-            // Update state from ref on submit
-            const handleSubmit = () => {
-              const notes = notesRef.current?.value || '';
-              handleApproveItem(selectedItem.id, approvalAction, notes);
-            };
+          const toggleTest = (id) => {
+            setSelectedTests(prev => {
+              const next = new Set(prev);
+              if (next.has(id)) {
+                next.delete(id);
+              } else {
+                next.add(id);
+              }
+              return next;
+            });
+          };
 
-            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
-              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
-                h('h3', { className: 'text-xl font-bold mb-4' }, modalTitle),
-                h('div', { className: 'mb-4 p-3 bg-gray-50 rounded' },
-                  h('p', { className: 'text-sm text-gray-600 mb-1' }, 'Item'),
-                  h('p', { className: 'font-medium' }, selectedItem.title)
-                ),
+          const selectAll = () => {
+            setSelectedTests(new Set(testCases.map(tc => tc.id)));
+          };
+
+          const clearAll = () => {
+            setSelectedTests(new Set());
+          };
+
+          return h('div', { className: 'modal-overlay', onClick: onCancel },
+            h('div', {
+              className: 'modal-content w-full max-w-3xl p-6',
+              onClick: (e) => e.stopPropagation()
+            },
+              h('h2', { className: 'text-2xl font-bold mb-6' }, 'Create New Test Run'),
+              h('form', { onSubmit: handleSubmit },
                 h('div', { className: 'mb-4' },
-                  h('label', { className: 'block text-sm font-medium mb-2' }, 'Result'),
-                  h('div', { className: 'flex gap-3' },
-                    h('button', {
-                      onClick: () => setApprovalAction(action1),
-                      className: `flex-1 p-3 rounded border-2 flex items-center justify-center gap-2 ${
-                        approvalAction === action1
-                          ? 'border-green-500 bg-green-50 text-green-700' 
-                          : 'border-gray-300 hover:border-green-300'
-                      }`
-                    },
-                      h(CheckCircle, { size: 20 }),
-                      ` ${action1Label}`
-                    ),
-                    h('button', {
-                      onClick: () => setApprovalAction(action2),
-                      className: `flex-1 p-3 rounded border-2 flex items-center justify-center gap-2 ${
-                        approvalAction === action2
-                          ? 'border-red-500 bg-red-50 text-red-700' 
-                          : 'border-gray-300 hover:border-red-300'
-                      }`
-                    },
-                      h(XCircle, { size: 20 }),
-                      ` ${action2Label}`
-                    )
-                  )
-                ),
-                h('div', { className: 'mb-6' },
-                  h('label', { className: 'block text-sm font-medium mb-2' }, 'Notes (Optional)'),
-                  h('textarea', {
-                    ref: notesRef,
-                    defaultValue: approvalNotes,
-                    placeholder: notesPlaceholder,
-                    className: 'w-full border rounded px-3 py-2 h-24',
-                    rows: 3
+                  h('label', { className: 'block text-sm font-medium mb-2' }, 'Run Name *'),
+                  h('input', {
+                    type: 'text',
+                    value: name,
+                    onChange: (e) => setName(e.target.value),
+                    className: 'w-full border rounded p-2',
+                    placeholder: 'e.g., Sprint 23 Regression',
+                    required: true
                   })
                 ),
-                h('div', { className: 'flex gap-2' },
+                h('div', { className: 'mb-4' },
+                  h('label', { className: 'block text-sm font-medium mb-2' }, 'Description'),
+                  h('textarea', {
+                    value: description,
+                    onChange: (e) => setDescription(e.target.value),
+                    className: 'w-full border rounded p-2 h-24',
+                    placeholder: 'Describe the purpose of this test run...'
+                  })
+                ),
+                h('div', { className: 'mb-4' },
+                  h('div', { className: 'flex items-center justify-between mb-2' },
+                    h('label', { className: 'text-sm font-medium' }, `Select Test Cases * (${selectedTests.size} selected)`),
+                    h('div', { className: 'space-x-2' },
+                      h('button', {
+                        type: 'button',
+                        onClick: selectAll,
+                        className: 'text-sm text-blue-600 hover:underline'
+                      }, 'Select All'),
+                      h('button', {
+                        type: 'button',
+                        onClick: clearAll,
+                        className: 'text-sm text-gray-600 hover:underline'
+                      }, 'Clear All')
+                    )
+                  ),
+                  h('div', { className: 'border rounded max-h-96 overflow-y-auto' },
+                    testCases.length === 0 
+                      ? h('div', { className: 'p-4 text-center text-gray-500' }, 'No test cases available')
+                      : testCases.map(tc =>
+                          h('label', {
+                            key: tc.id,
+                            className: 'flex items-start gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0'
+                          },
+                            h('input', {
+                              type: 'checkbox',
+                              checked: selectedTests.has(tc.id),
+                              onChange: () => toggleTest(tc.id),
+                              className: 'mt-1'
+                            }),
+                            h('div', { className: 'flex-1' },
+                              h('div', { className: 'font-medium' }, tc.title),
+                              h('div', { className: 'text-sm text-gray-600' }, tc.description)
+                            )
+                          )
+                        )
+                  )
+                ),
+                h('div', { className: 'flex gap-3 justify-end' },
                   h('button', {
-                    onClick: handleSubmit,
-                    className: `flex-1 px-4 py-2 rounded font-medium text-white ${
-                      approvalAction === action1 ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
-                    }`
-                  }, `${approvalAction === action1 ? action1Label : action2Label} Item`),
+                    type: 'button',
+                    onClick: onCancel,
+                    className: 'px-4 py-2 border rounded hover:bg-gray-50'
+                  }, 'Cancel'),
                   h('button', {
-                    onClick: () => {
-                      setShowApprovalModal(false);
-                      setApprovalNotes('');
-                    },
-                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
-                  }, 'Cancel')
+                    type: 'submit',
+                    disabled: !name.trim() || selectedTests.size === 0,
+                    className: 'px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed'
+                  }, 'Create Test Run')
                 )
               )
-            );
+            )
+          );
+        };
+
+        // Main Application Component
+        const RequirementsManager = () => {
+          const [items, setItems] = useState([]);
+          const [projects, setProjects] = useState([]);
+          const [selectedProject, setSelectedProject] = useState(null);
+          const [relationships, setRelationships] = useState([]);
+          const [folders, setFolders] = useState([]);
+          const [testRuns, setTestRuns] = useState([]);
+          const [testResults, setTestResults] = useState([]);
+          const [selectedItem, setSelectedItem] = useState(null);
+          const [filterType, setFilterType] = useState('all');
+          const [searchQuery, setSearchQuery] = useState('');
+          const [showNewItemForm, setShowNewItemForm] = useState(false);
+          const [showNewRunForm, setShowNewRunForm] = useState(false);
+          const [activeTestRun, setActiveTestRun] = useState(null);
+          const [view, setView] = useState('items'); // 'items', 'test-runs'
+          const [sidebarOpen, setSidebarOpen] = useState(true);
+
+          useEffect(() => {
+            loadData();
+          }, [selectedProject]);
+
+          const loadData = async () => {
+            try {
+              const [itemsRes, relRes, projectsRes, foldersRes, testRunsRes, testResultsRes] = await Promise.all([
+                dbOperation('items', 'readonly', store => store.getAll()),
+                dbOperation('relationships', 'readonly', store => store.getAll()),
+                dbOperation('projects', 'readonly', store => store.getAll()),
+                dbOperation('folders', 'readonly', store => store.getAll()),
+                dbOperation('testRuns', 'readonly', store => store.getAll()),
+                dbOperation('testResults', 'readonly', store => store.getAll())
+              ]);
+
+              setItems(selectedProject 
+                ? itemsRes.filter(item => item.projectId === selectedProject.id)
+                : itemsRes
+              );
+              setRelationships(relRes);
+              setProjects(projectsRes);
+              setFolders(foldersRes);
+              setTestRuns(testRunsRes);
+              setTestResults(testResultsRes);
+
+              if (projectsRes.length > 0 && !selectedProject) {
+                setSelectedProject(projectsRes[0]);
+              }
+            } catch (error) {
+              console.error('Error loading data:', error);
+            }
           };
 
-          const MyReviewsPanel = () => {
-            if (!user) return null;
-            
-            const itemsNeedingMyReview = items.filter(item => 
-              item.reviewer_email === user.email && 
-              item.status === 'in-review' &&
-              selectedProject && item.project_id === selectedProject.id
-            );
+          const handleCreateTestRun = async (runData) => {
+            const newRun = {
+              id: `run-${Date.now()}`,
+              ...runData,
+              status: 'planned',
+              createdAt: new Date().toISOString(),
+              totalTests: runData.testCaseIds.length,
+              passed: 0,
+              failed: 0,
+              blocked: 0
+            };
 
-            if (itemsNeedingMyReview.length === 0) return null;
-
-            return h('div', { className: 'bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 rounded' },
-              h('div', { className: 'flex items-center justify-between mb-2' },
-                h('div', { className: 'flex items-center gap-2' },
-                  h('span', { className: 'text-yellow-800 font-semibold' }, '⚠ Items Awaiting Your Review'),
-                  h('span', { className: 'bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-xs font-bold' }, 
-                    itemsNeedingMyReview.length
-                  )
-                ),
-                h('button', {
-                  onClick: () => setShowReviewPanel(!showReviewPanel),
-                  className: 'text-yellow-700 hover:text-yellow-900 p-1'
-                }, showReviewPanel ? h(ChevronDown, { size: 16 }) : h(ChevronRight, { size: 16 }))
-              ),
-              showReviewPanel && h('div', { className: 'space-y-2' },
-                ...itemsNeedingMyReview.slice(0, 3).map(item =>
-                  h('div', { 
-                    key: item.id, 
-                    className: 'flex items-center justify-between bg-white p-2 rounded cursor-pointer hover:bg-gray-50',
-                    onClick: () => { setSelectedItem(item); setShowDetailPanel(true); }
-                  },
-                    h('span', { className: 'text-sm font-medium' }, item.title),
-                    h('span', { className: 'text-xs text-gray-500' }, item.type)
-                  )
-                ),
-                itemsNeedingMyReview.length > 3 && h('p', { className: 'text-xs text-yellow-700 mt-2' }, 
-                  `+${itemsNeedingMyReview.length - 3} more items`
-                )
-              )
-            );
+            await dbOperation('testRuns', 'readwrite', store => store.add(newRun));
+            setShowNewRunForm(false);
+            loadData();
           };
 
-          const MyTestsPanel = () => {
-            if (!user) return null;
-            
-            const testsNeedingMyExecution = items.filter(item => 
-              item.tester_email === user.email && 
-              item.status === 'ready-for-test' &&
-              selectedProject && item.project_id === selectedProject.id
-            );
+          const handleUpdateTestResult = async (testCaseId, status, notes) => {
+            if (!activeTestRun) return;
 
-            if (testsNeedingMyExecution.length === 0) return null;
+            const resultId = `result-${activeTestRun.id}-${testCaseId}`;
+            const result = {
+              id: resultId,
+              runId: activeTestRun.id,
+              testCaseId,
+              status,
+              notes,
+              executedAt: new Date().toISOString()
+            };
 
-            return h('div', { className: 'bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded' },
-              h('div', { className: 'flex items-center justify-between mb-2' },
-                h('div', { className: 'flex items-center gap-2' },
-                  h('span', { className: 'text-blue-800 font-semibold' }, '🧪 Tests Awaiting Execution'),
-                  h('span', { className: 'bg-blue-200 text-blue-800 px-2 py-1 rounded-full text-xs font-bold' }, 
-                    testsNeedingMyExecution.length
-                  )
-                ),
-                h('button', {
-                  onClick: () => setShowTestPanel(!showTestPanel),
-                  className: 'text-blue-700 hover:text-blue-900 p-1'
-                }, showTestPanel ? h(ChevronDown, { size: 16 }) : h(ChevronRight, { size: 16 }))
-              ),
-              showTestPanel && h('div', { className: 'space-y-2' },
-                ...testsNeedingMyExecution.slice(0, 3).map(item =>
-                  h('div', { 
-                    key: item.id, 
-                    className: 'flex items-center justify-between bg-white p-2 rounded cursor-pointer hover:bg-gray-50',
-                    onClick: () => { setSelectedItem(item); setShowDetailPanel(true); }
-                  },
-                    h('span', { className: 'text-sm font-medium' }, item.title),
-                    h('span', { className: 'text-xs text-gray-500' }, item.type)
-                  )
-                ),
-                testsNeedingMyExecution.length > 3 && h('p', { className: 'text-xs text-blue-700 mt-2' }, 
-                  `+${testsNeedingMyExecution.length - 3} more items`
-                )
-              )
-            );
+            await dbOperation('testResults', 'readwrite', store => store.put(result));
+
+            // Update run statistics
+            const allResults = await dbOperation('testResults', 'readonly', store => {
+              const index = store.index('runId');
+              return index.getAll(activeTestRun.id);
+            });
+
+            const stats = {
+              passed: allResults.filter(r => r.status === 'pass').length,
+              failed: allResults.filter(r => r.status === 'fail').length,
+              blocked: allResults.filter(r => r.status === 'block').length
+            };
+
+            const completed = stats.passed + stats.failed + stats.blocked;
+            const updatedRun = {
+              ...activeTestRun,
+              ...stats,
+              status: completed === activeTestRun.totalTests ? 'completed' : 'in_progress',
+              completedAt: completed === activeTestRun.totalTests ? new Date().toISOString() : activeTestRun.completedAt
+            };
+
+            await dbOperation('testRuns', 'readwrite', store => store.put(updatedRun));
+            loadData();
           };
 
           const filteredItems = useMemo(() => {
             return items.filter(item => {
-              const matchesProject = !selectedProject || item.project_id === selectedProject.id;
               const matchesType = filterType === 'all' || item.type === filterType;
-              const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
-              const matchesSearch = searchTerm === '' || 
-                item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
-              return matchesProject && matchesType && matchesStatus && matchesSearch;
+              const matchesSearch = !searchQuery || 
+                item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                item.description?.toLowerCase().includes(searchQuery.toLowerCase());
+              return matchesType && matchesSearch;
             });
-          }, [items, selectedProject, filterType, filterStatus, searchTerm]);
+          }, [items, filterType, searchQuery]);
 
-          const renderTreeItem = (item, level = 0) => {
-            const hasChildren = item.children && item.children.length > 0;
-            const isExpanded = expandedItems.has(item.id);
-            const isSelected = selectedItem?.id === item.id;
-            
-            if (!filteredItems.find(i => i.id === item.id)) return null;
+          const testCases = items.filter(item => item.type === 'test_case');
 
-            return h('div', { key: item.id },
-              h('div', {
-                className: `flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 border-b ${isSelected ? 'bg-fresh-50 border-l-4 border-fresh-500' : ''} ${dropTarget === item.id ? 'bg-blue-100' : ''} ${draggedItem?.id === item.id ? 'opacity-50' : ''}`,
-                // Indent requirements one level deeper than epics to show they nest conceptually within the organizational structure
-                style: { paddingLeft: `${item.type === 'requirement' ? ((requirementLevels.indexOf(item.level || 'system') + 1) * 20 + 8) : (level * 20 + 8)}px` },
-                onClick: () => { setSelectedItem(item); setShowDetailPanel(true); },
-                onDragOver: (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setDropTarget(item.id);
-                },
-                onDragLeave: (e) => {
-                  e.stopPropagation();
-                  if (e.currentTarget === e.target) setDropTarget(null);
-                },
-                onDrop: (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (draggedItem && draggedItem.id !== item.id) {
-                    handleUpdateParent(draggedItem.id, item.id);
-                  }
-                  setDraggedItem(null);
-                  setDropTarget(null);
-                }
-              },
-                h('div', {
-                  draggable: true,
-                  onDragStart: (e) => {
-                    e.stopPropagation();
-                    setDraggedItem(item);
-                  },
-                  onDragEnd: () => {
-                    setDraggedItem(null);
-                    setDropTarget(null);
-                  },
-                  onClick: (e) => e.stopPropagation(),
-                  className: 'cursor-move text-gray-400 hover:text-gray-600 flex items-center'
-                }, h(GripVertical, { size: 16 })),
-                hasChildren && h('button', { 
-                  onClick: (e) => { e.stopPropagation(); toggleExpand(item.id); },
-                  className: 'p-0'
-                }, isExpanded ? h(ChevronDown, { size: 16 }) : h(ChevronRight, { size: 16 })),
-                !hasChildren && h('div', { className: 'w-4' }),
-                h('span', {
-                  className: `px-2 py-1 text-xs rounded ${
-                    item.type === 'epic' ? 'bg-purple-100 text-purple-800' :
-                    item.type === 'requirement' ? 'bg-blue-100 text-blue-800' :
-                    item.type === 'test-case' ? 'bg-green-100 text-green-800' :
-                    'bg-red-100 text-red-800'
-                  }`
-                }, item.type === 'requirement' ? `${item.type} (${item.level || 'system'})` : item.type),
-                h('div', { className: 'flex-1' },
-                      h('div', { className: 'font-medium' }, item.title),
-                      !showDetailPanel && item.description && h('div', { className: 'text-sm text-gray-600 mt-1' }, item.description)
-                    ),
-                // Hide status for epics since they're organizational containers
-                item.type !== 'epic' && h('span', {
-                  className: `px-2 py-1 text-xs rounded ${
-                    item.status === 'approved' || item.status === 'passed' ? 'bg-green-100 text-green-800' :
-                    item.status === 'in-review' || item.status === 'ready-for-test' ? 'bg-yellow-100 text-yellow-800' :
-                    item.status === 'rejected' || item.status === 'failed' ? 'bg-red-100 text-red-800' :
-                    item.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-                    'bg-blue-100 text-blue-800'
-                  }`
-                }, item.status)
+          return h('div', { className: 'flex h-screen bg-gray-100' },
+            // Sidebar
+            sidebarOpen && h('div', { className: 'w-80 bg-white border-r flex flex-col' },
+              h('div', { className: 'p-4 border-b' },
+                h('div', { className: 'flex items-center justify-between mb-4' },
+                  h('h1', { className: 'text-xl font-bold' }, 'Requirements'),
+                  h('button', {
+                    onClick: () => window.open('quick-start-guide.html', '_blank'),
+                    className: 'p-2 hover:bg-gray-100 rounded',
+                    title: 'Help & Quick Start Guide'
+                  }, h(HelpCircle, { size: 20 }))
+                ),
+                h('div', { className: 'flex gap-2 mb-4' },
+                  h('button', {
+                    onClick: () => setView('items'),
+                    className: `flex-1 px-3 py-2 rounded text-sm ${view === 'items' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`
+                  }, 'Items'),
+                  h('button', {
+                    onClick: () => setView('test-runs'),
+                    className: `flex-1 px-3 py-2 rounded text-sm ${view === 'test-runs' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`
+                  }, 'Test Runs')
+                ),
+                h('div', { className: 'relative' },
+                  h(Search, { size: 18, className: 'absolute left-3 top-2.5 text-gray-400' }),
+                  h('input', {
+                    type: 'text',
+                    value: searchQuery,
+                    onChange: (e) => setSearchQuery(e.target.value),
+                    placeholder: 'Search...',
+                    className: 'w-full pl-10 pr-3 py-2 border rounded'
+                  })
+                )
               ),
-              isExpanded && hasChildren && h('div', {},
-                item.children.map(childId => {
-                  const child = items.find(i => i.id === childId);
-                  return child ? renderTreeItem(child, level + 1) : null;
-                })
-              )
-            );
-          };
-
-          const ItemForm = ({ item, onSave, onCancel }) => {
-            const [formData, setFormData] = useState(item || {
-              type: 'requirement',
-              title: '',
-              description: '',
-              rationale: '',
-              test_method: '',
-              status: 'draft',
-              priority: 'medium',
-              owner: '',
-              level: 'system',
-              parentId: selectedItem?.id || null,
-            });
-
-            const [selectedRelationships, setSelectedRelationships] = useState([]);
-            const [suggestedLevel, setSuggestedLevel] = useState(null);
-            const [showLevelConfirm, setShowLevelConfirm] = useState(false);
-
-            const getFieldsForType = (type) => {
-              switch(type) {
-                case 'epic':
-                  return ['title', 'description'];
-                case 'requirement':
-                  return ['title', 'description', 'rationale', 'status', 'priority', 'owner', 'level'];
-                case 'test-case':
-                  return ['title', 'description', 'test_method', 'status', 'owner'];
-                case 'defect':
-                  return ['title', 'description', 'status', 'priority', 'owner'];
-                default:
-                  return ['title', 'description'];
-              }
-            };
-
-            const fields = getFieldsForType(formData.type);
-            const availableStatuses = statuses[formData.type] || statuses.requirement;
-
-            // Update status when type changes
-            useEffect(() => {
-              if (!availableStatuses.includes(formData.status)) {
-                setFormData(prev => ({ ...prev, status: availableStatuses[0] }));
-              }
-            }, [formData.type]);
-
-            // Get list of all users who have interacted with the system (for reviewer/tester assignment)
-            const allUsers = useMemo(() => {
-              const userEmails = new Set();
-              comments.forEach(c => c.author_email && userEmails.add(c.author_email));
-              items.forEach(i => {
-                if (i.owner) userEmails.add(i.owner);
-                if (i.reviewer_email) userEmails.add(i.reviewer_email);
-                if (i.tester_email) userEmails.add(i.tester_email);
-              });
-              if (user) userEmails.add(user.email);
-              return Array.from(userEmails);
-            }, [comments, items, user]);
-
-            
-            const getNextLevel = (currentLevel) => {
-              const idx = requirementLevels.indexOf(currentLevel);
-              return idx >= 0 && idx < requirementLevels.length - 1 
-                ? requirementLevels[idx + 1] 
-                : currentLevel;
-            };
-
-            // Watch for derives-from relationships and suggest level
-            useEffect(() => {
-              if (formData.type !== 'requirement') return;
               
-              const derivesFromRel = selectedRelationships.find(r => r.type === 'derives-from');
-              if (derivesFromRel) {
-                const parentItem = items.find(i => i.id === derivesFromRel.to);
-                if (parentItem && parentItem.level) {
-                  const nextLevel = getNextLevel(parentItem.level);
-                  if (nextLevel !== formData.level) {
-                    setSuggestedLevel(nextLevel);
-                    setShowLevelConfirm(true);
-                  }
-                }
-              }
-            }, [selectedRelationships, formData.type]);
-
-            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
-              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto' },
-                h('h3', { className: 'text-xl font-bold mb-4' }, item ? 'Edit Item' : 'New Item'),
-                h('div', { className: 'space-y-4' },
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Type'),
-                    h('select', {
-                      value: formData.type,
-                      onChange: (e) => setFormData({ ...formData, type: e.target.value }),
-                      className: 'w-full border rounded px-3 py-2',
-                      disabled: !!item
-                    }, itemTypes.map(type => h('option', { key: type, value: type }, type)))
-                  ),
-                  fields.includes('title') && h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Title'),
-                    h('input', {
-                      type: 'text',
-                      value: formData.title,
-                      onChange: (e) => setFormData({ ...formData, title: e.target.value }),
-                      className: 'w-full border rounded px-3 py-2'
-                    })
-                  ),
-                  fields.includes('description') && h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Description'),
-                    h('textarea', {
-                      value: formData.description,
-                      onChange: (e) => setFormData({ ...formData, description: e.target.value }),
-                      className: 'w-full border rounded px-3 py-2 h-24'
-                    })
-                  ),
-                  fields.includes('rationale') && h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Rationale'),
-                    h('textarea', {
-                      value: formData.rationale || '',
-                      onChange: (e) => setFormData({ ...formData, rationale: e.target.value }),
-                      className: 'w-full border rounded px-3 py-2 h-20'
-                    })
-                  ),
-                  fields.includes('test_method') && h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Test Method'),
-                    h('textarea', {
-                      value: formData.test_method || '',
-                      onChange: (e) => setFormData({ ...formData, test_method: e.target.value }),
-                      className: 'w-full border rounded px-3 py-2 h-20'
-                    })
-                  ),
-                  h('div', { className: 'grid grid-cols-2 gap-4' },
-                    fields.includes('status') && h('div', {},
-                      h('label', { className: 'block text-sm font-medium mb-1' }, 'Status'),
-                      h('select', {
-                        value: formData.status,
-                        onChange: (e) => setFormData({ ...formData, status: e.target.value }),
-                        className: 'w-full border rounded px-3 py-2'
-                      }, availableStatuses.map(status => h('option', { key: status, value: status }, status)))
-                    ),
-                    fields.includes('priority') && h('div', {},
-                      h('label', { className: 'block text-sm font-medium mb-1' }, 'Priority'),
-                      h('select', {
-                        value: formData.priority,
-                        onChange: (e) => setFormData({ ...formData, priority: e.target.value }),
-                        className: 'w-full border rounded px-3 py-2'
-                      }, priorities.map(priority => h('option', { key: priority, value: priority }, priority)))
-                    )
-                  ),
-                  fields.includes('owner') && h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Owner'),
-                    h('input', {
-                      type: 'text',
-                      value: formData.owner,
-                      onChange: (e) => setFormData({ ...formData, owner: e.target.value }),
-                      className: 'w-full border rounded px-3 py-2'
-                    })
-                  ),
-                  fields.includes('level') && h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Requirement Level'),
-                    h('select', {
-                      value: formData.level || 'system',
-                      onChange: (e) => setFormData({ ...formData, level: e.target.value }),
-                      className: 'w-full border rounded px-3 py-2'
-                    }, requirementLevels.map(lvl => h('option', { key: lvl, value: lvl }, lvl)))
-                  ),
-                  (formData.type === 'requirement' || formData.type === 'epic' || formData.type === 'test-case') && h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 
-                      formData.type === 'test-case' ? 'Assign Tester (Optional)' : 'Assign Reviewer (Optional)'
-                    ),
-                    h('select', {
-                      value: formData.type === 'test-case' ? (formData.tester_email || '') : (formData.reviewer_email || ''),
-                      onChange: (e) => {
-                        if (formData.type === 'test-case') {
-                          setFormData({ ...formData, tester_email: e.target.value });
-                        } else {
-                          setFormData({ ...formData, reviewer_email: e.target.value });
-                        }
-                      },
-                      className: 'w-full border rounded px-3 py-2'
-                    },
-                      h('option', { value: '' }, formData.type === 'test-case' ? 'No tester assigned' : 'No reviewer assigned'),
-                      ...allUsers.map(email => h('option', { key: email, value: email }, email))
-                    )
-                  ),
-                  !item && h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Add Relationships (Optional)'),
-                    h('div', { className: 'border rounded p-3 space-y-2' },
-                      ...selectedRelationships.map((rel, idx) =>
-                        h('div', { key: idx, className: 'flex gap-2 items-center bg-gray-50 p-2 rounded' },
-                          h('select', {
-                            value: rel.type,
-                            onChange: (e) => {
-                              const updated = [...selectedRelationships];
-                              updated[idx].type = e.target.value;
-                              setSelectedRelationships(updated);
-                            },
-                            className: 'border rounded px-2 py-1 text-sm'
-                          }, relationshipTypes.map(rt => h('option', { key: rt, value: rt }, rt))),
-                          h('select', {
-                            value: rel.to,
-                            onChange: (e) => {
-                              const updated = [...selectedRelationships];
-                              updated[idx].to = Number(e.target.value);
-                              setSelectedRelationships(updated);
-                            },
-                            className: 'flex-1 border rounded px-2 py-1 text-sm'
-                          },
-                            h('option', { value: '' }, 'Select item...'),
-                            items.map(i => h('option', { key: i.id, value: i.id }, `[${i.type}] ${i.title}`))
-                          ),
-                          h('button', {
-                            onClick: () => setSelectedRelationships(selectedRelationships.filter((_, i) => i !== idx)),
-                            className: 'text-red-600 hover:bg-red-50 p-1 rounded'
-                          }, h(X, { size: 16 }))
-                        )
-                      ),
-                      h('button', {
-                        onClick: () => setSelectedRelationships([...selectedRelationships, { type: 'relates-to', to: '' }]),
-                        className: 'text-fresh-600 hover:bg-fresh-50 px-3 py-1 rounded text-sm flex items-center gap-1'
-                      }, h(Plus, { size: 14 }), ' Add Relationship')
-                    )
-                  )
-                ),
-                h('div', { className: 'flex gap-2 mt-6' },
-                  h('button', {
-                    onClick: async () => {
-                      if (item) {
-                        onSave(item.id, formData);
-                      } else {
-                        await onSave({ ...formData, relationships: selectedRelationships });
-                        // Add relationships after item is created
-                        if (selectedRelationships.length > 0) {
-                          // We'd need the new item ID here - will handle in onSave
-                        }
-                      }
-                    },
-                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
-                  }, h(Save, { size: 16 }), ' Save'),
-                  h('button', {
-                    onClick: onCancel,
-                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 flex items-center justify-center gap-2'
-                  }, h(X, { size: 16 }), ' Cancel')
-                )
-              ),
-              showLevelConfirm && h(LevelConfirmModal, {
-                suggestedLevel,
-                currentLevel: items.find(i => selectedRelationships.find(r => r.type === 'derives-from' && r.to === i.id))?.level || 'system',
-                onAccept: () => {
-                  setFormData({ ...formData, level: suggestedLevel });
-                  setShowLevelConfirm(false);
-                },
-                onReject: () => {
-                  setShowLevelConfirm(false);
-                },
-                onClose: () => {
-                  setShowLevelConfirm(false);
-                },
-                formData
-              })
-            );
-          };
-
-          const RelationshipForm = () => {
-            const [from, setFrom] = useState(selectedItem?.id || '');
-            const [to, setTo] = useState('');
-            const [type, setType] = useState('tests');
-
-            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
-              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
-                h('h3', { className: 'text-xl font-bold mb-4' }, 'Add Relationship'),
-                h('div', { className: 'space-y-4' },
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'From Item'),
-                    h('select', {
-                      value: from,
-                      onChange: (e) => setFrom(Number(e.target.value)),
-                      className: 'w-full border rounded px-3 py-2'
-                    }, 
-                      h('option', { value: '' }, 'Select item...'),
-                      items.map(item => h('option', { key: item.id, value: item.id }, `[${item.type}] ${item.title}`))
-                    )
-                  ),
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Relationship Type'),
-                    h('select', {
-                      value: type,
-                      onChange: (e) => setType(e.target.value),
-                      className: 'w-full border rounded px-3 py-2'
-                    }, relationshipTypes.map(rt => h('option', { key: rt, value: rt }, rt)))
-                  ),
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-1' }, 'To Item'),
-                    h('select', {
-                      value: to,
-                      onChange: (e) => setTo(Number(e.target.value)),
-                      className: 'w-full border rounded px-3 py-2'
-                    },
-                      h('option', { value: '' }, 'Select item...'),
-                      items.filter(i => i.id !== from).map(item => h('option', { key: item.id, value: item.id }, `[${item.type}] ${item.title}`))
-                    )
-                  )
-                ),
-                h('div', { className: 'flex gap-2 mt-6' },
-                  h('button', {
-                    onClick: () => from && to && handleAddRelationship(from, to, type),
-                    disabled: !from || !to,
-                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:bg-gray-300'
-                  }, 'Add Relationship'),
-                  h('button', {
-                    onClick: () => setShowRelationshipForm(false),
-                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
-                  }, 'Cancel')
-                )
-              )
-            );
-          };
-
-          const ImportCSVModal = () => {
-            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
-              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-lg' },
-                h('h3', { className: 'text-xl font-bold mb-4' }, 'Import Requirements from CSV'),
-                h('div', { className: 'mb-6' },
-                  h('div', { className: 'bg-blue-50 border-l-4 border-blue-500 p-4 mb-4' },
-                    h('p', { className: 'text-sm text-blue-800 mb-2' }, '📋 Import Instructions:'),
-                    h('ul', { className: 'text-sm text-blue-700 space-y-1 ml-4' },
-                      h('li', {}, '• Download the template to see the required format'),
-                      h('li', {}, '• Fill in your requirements data in the CSV'),
-                      h('li', {}, '• Required fields: type, title'),
-                      h('li', {}, '• Items will be imported to the current project'),
-                      h('li', {}, '• Valid types: epic, requirement, test-case, defect')
-                    )
-                  ),
-                  h('div', { className: 'mb-4' },
-                    h('button', {
-                      onClick: downloadCSVTemplate,
-                      className: 'w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2'
-                    }, '📥 Download CSV Template')
-                  ),
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Select CSV File to Import'),
-                    h('input', {
-                      type: 'file',
-                      accept: '.csv',
-                      onChange: (e) => setImportFile(e.target.files[0]),
-                      className: 'w-full border rounded px-3 py-2'
-                    })
-                  ),
-                  importFile && h('p', { className: 'text-sm text-gray-600 mt-2' }, 
-                    `Selected: ${importFile.name}`
-                  )
-                ),
+              view === 'items' && h('div', { className: 'p-4 border-b' },
                 h('div', { className: 'flex gap-2' },
-                  h('button', {
-                    onClick: () => importFile && handleImportCSV(importFile),
-                    disabled: !importFile,
-                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:bg-gray-300'
-                  }, 'Import CSV'),
-                  h('button', {
-                    onClick: () => {
-                      setShowImportModal(false);
-                      setImportFile(null);
-                    },
-                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
-                  }, 'Cancel')
-                )
-              )
-            );
-          };
-
-          const RelationshipGraph = ({ item }) => {
-            if (!item) return null;
-
-            const outgoing = getItemRelationships(item.id).outgoing;
-            const incoming = getItemRelationships(item.id).incoming;
-            
-            // Build graph data - don't override the type property
-            const graphItems = [{ ...item, level: 0, isCenter: true }];
-            
-            // Add incoming (items that point TO this item) - these go below (reversed)
-            incoming.forEach((rel, idx) => {
-              const sourceItem = items.find(i => i.id === rel.from_id);
-              if (sourceItem) {
-                graphItems.push({ 
-                  ...sourceItem, 
-                  level: 1, 
-                  relType: rel.type,
-                  index: idx 
-                });
-              }
-            });
-            
-            // Add outgoing (items this item points TO) - these go above (reversed)
-            outgoing.forEach((rel, idx) => {
-              const targetItem = items.find(i => i.id === rel.to_id);
-              if (targetItem) {
-                graphItems.push({ 
-                  ...targetItem, 
-                  level: -1, 
-                  relType: rel.type,
-                  index: idx 
-                });
-              }
-            });
-
-            const width = 800;
-            const height = 600;
-            const centerY = height / 2;
-            const centerX = width / 2;
-            const levelSpacing = 200;
-            const nodeWidth = 180;
-            const nodeHeight = 60;
-
-            return h('div', { className: 'bg-white p-4 rounded-lg border' },
-              h('svg', { width, height, className: 'mx-auto' },
-                // Draw connections
-                ...graphItems.filter(gi => gi.level !== 0).map(gi => {
-                  const itemsAtLevel = graphItems.filter(g => g.level === gi.level).length;
-                  const spacing = Math.min(250, width / (itemsAtLevel + 1));
-                  const x = centerX + (gi.index - (itemsAtLevel - 1) / 2) * spacing;
-                  const y = centerY + gi.level * levelSpacing;
-                  
-                  return h('g', { key: `conn-${gi.id}` },
-                    h('line', {
-                      x1: centerX,
-                      y1: centerY,
-                      x2: x,
-                      y2: y,
-                      stroke: gi.level < 0 ? '#16a34a' : '#3b82f6',
-                      strokeWidth: 2,
-                      markerEnd: 'url(#arrowhead)'
-                    }),
-                    h('text', {
-                      x: (centerX + x) / 2,
-                      y: (centerY + y) / 2 - 5,
-                      fontSize: 11,
-                      fill: '#666',
-                      textAnchor: 'middle'
-                    }, gi.relType)
-                  );
-                }),
-                
-                // Arrow marker definition
-                h('defs', {},
-                  h('marker', {
-                    id: 'arrowhead',
-                    markerWidth: 10,
-                    markerHeight: 7,
-                    refX: 9,
-                    refY: 3.5,
-                    orient: 'auto'
-                  },
-                    h('polygon', {
-                      points: '0 0, 10 3.5, 0 7',
-                      fill: '#666'
-                    })
-                  )
-                ),
-                
-                // Draw nodes
-                ...graphItems.map(gi => {
-                  const itemsAtLevel = graphItems.filter(g => g.level === gi.level).length;
-                  const spacing = Math.min(250, width / (itemsAtLevel + 1));
-                  const x = gi.level === 0 ? centerX : centerX + (gi.index - (itemsAtLevel - 1) / 2) * spacing;
-                  const y = centerY + gi.level * levelSpacing;
-                  
-                  const bgColor = gi.isCenter ? '#22c55e' :
-                                  gi.type === 'epic' ? '#a855f7' :
-                                  gi.type === 'requirement' ? '#3b82f6' :
-                                  gi.type === 'test-case' ? '#10b981' : '#ef4444';
-                  
-                  return h('g', { key: `node-${gi.id}` },
-                    h('rect', {
-                      x: x - nodeWidth / 2,
-                      y: y - nodeHeight / 2,
-                      width: nodeWidth,
-                      height: nodeHeight,
-                      fill: bgColor,
-                      rx: 8,
-                      stroke: gi.isCenter ? '#15803d' : '#fff',
-                      strokeWidth: gi.isCenter ? 3 : 1
-                    }),
-                    h('text', {
-                      x,
-                      y: y - 8,
-                      fontSize: 11,
-                      fill: 'white',
-                      textAnchor: 'middle',
-                      fontWeight: gi.isCenter ? 'bold' : 'normal'
-                    }, gi.type),
-                    h('text', {
-                      x,
-                      y: y + 8,
-                      fontSize: 12,
-                      fill: 'white',
-                      textAnchor: 'middle',
-                      fontWeight: gi.isCenter ? 'bold' : 'normal'
-                    }, gi.title.length > 20 ? gi.title.substring(0, 20) + '...' : gi.title)
-                  );
-                })
-              ),
-              h('div', { className: 'mt-4 text-sm text-gray-600 text-center' },
-                h('div', {}, '↑ Items that link TO this requirement'),
-                h('div', { className: 'mt-1' }, '↓ Items this requirement links TO')
-              )
-            );
-          };
-
-          const rootItems = items.filter(item => !item.parent_id);
-
-          if (!isConfigured) {
-            return h('div', { className: 'h-screen flex items-center justify-center bg-gray-50' },
-              h('div', { className: 'bg-white p-8 rounded-lg shadow-lg max-w-2xl w-full' },
-                h('img', { 
-                  src: './Fresh logo - Suisse.png', 
-                  alt: 'Fresh Consulting',
-                  className: 'h-12 mx-auto mb-6'
-                }),
-                h('h1', { className: 'text-3xl font-bold mb-6 text-center' }, 'Requirements Management System'),
-                h('p', { className: 'text-gray-600 mb-6' }, 'Connect to your Supabase database to get started. You\'ll need your project URL and anon key.'),
-                h('div', { className: 'space-y-4 mb-6' },
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Supabase Project URL'),
-                    h('input', {
-                      type: 'text',
-                      value: supabaseUrl,
-                      onChange: (e) => setSupabaseUrl(e.target.value),
-                      placeholder: 'https://your-project.supabase.co',
-                      className: 'w-full border rounded px-4 py-2'
-                    })
-                  ),
-                  h('div', {},
-                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Supabase Anon Key'),
-                    h('input', {
-                      type: 'password',
-                      value: supabaseKey,
-                      onChange: (e) => setSupabaseKey(e.target.value),
-                      placeholder: 'Your anon key',
-                      className: 'w-full border rounded px-4 py-2'
-                    })
-                  )
-                ),
-                h('div', { className: 'space-y-3' },
-                  h('button', {
-                    onClick: initializeSupabase,
-                    disabled: !supabaseUrl || !supabaseKey,
-                    className: 'w-full bg-fresh-600 text-white px-4 py-3 rounded hover:bg-fresh-700 disabled:bg-gray-300 font-semibold'
-                  }, 'Connect to Supabase'),
-                  h('button', {
-                    onClick: setupDatabase,
-                    className: 'w-full bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300'
-                  }, 'Show Database Setup Instructions')
-                ),
-                h('div', { className: 'mt-6 p-4 bg-fresh-50 rounded' },
-                  h('p', { className: 'text-sm text-fresh-900' },
-                    h('strong', {}, 'First time setup: '),
-                    'Click "Show Database Setup Instructions" to get the SQL commands you need to run in your Supabase SQL editor to create the required tables.'
+                  ['all', 'epic', 'requirement', 'test_case', 'defect'].map(type =>
+                    h('button', {
+                      key: type,
+                      onClick: () => setFilterType(type),
+                      className: `px-3 py-1 rounded text-sm ${filterType === type ? 'bg-blue-100 text-blue-700' : 'bg-gray-100'}`
+                    }, type === 'all' ? 'All' : type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '))
                   )
                 )
-              )
-            );
-          }
-
-          return h('div', { className: 'h-screen flex flex-col bg-gray-50' },
-            h('header', { className: 'bg-fresh-600 text-white p-4 shadow flex justify-between items-center' },
-              h('div', { className: 'flex items-center gap-4' },
-                h('img', { 
-                  src: './Fresh logo - Suisse.png', 
-                  alt: 'Fresh Consulting',
-                  className: 'h-8'
-                }),
-                h('h1', { className: 'text-2xl font-bold' }, 'Requirements Management'),
-                h(ProjectSelector)
               ),
-              h('div', { className: 'flex gap-3 items-center' },
-                user && h('div', { className: 'flex items-center gap-2 bg-fresh-700 px-3 py-2 rounded' },
-                  user.user_metadata?.avatar_url && h('img', {
-                    src: user.user_metadata.avatar_url,
-                    alt: user.user_metadata?.full_name || user.email,
-                    className: 'w-8 h-8 rounded-full'
-                  }),
-                  h('span', { className: 'text-sm' }, user.user_metadata?.full_name || user.email)
-                ),
-                h('a', {
-                  href: './quick-start-guide.html',
-                  target: '_blank',
-                  rel: 'noopener noreferrer',
-                  className: 'px-4 py-2 bg-fresh-500 rounded hover:bg-fresh-700 flex items-center gap-2 text-white no-underline',
-                  title: 'Open Quick Start Guide'
-                }, '❓ Help'),
-                h('button', {
-                  onClick: () => setShowReports(!showReports),
-                  className: `px-4 py-2 rounded flex items-center gap-2 ${showReports ? 'bg-fresh-700' : 'bg-fresh-500 hover:bg-fresh-700'}`
-                }, h(TrendingUp, { size: 18 }), showReports ? ' Hide Reports' : ' Show Reports'),
-                h('button', {
-                  onClick: () => loadData(supabase),
-                  className: 'px-4 py-2 bg-fresh-500 rounded hover:bg-fresh-700 flex items-center gap-2'
-                }, '🔄'),
-                user && h('button', {
-                  onClick: handleSignOut,
-                  className: 'px-4 py-2 bg-fresh-700 rounded hover:bg-fresh-800 text-sm'
-                }, 'Sign Out')
-              )
+
+              h('div', { className: 'flex-1 overflow-y-auto p-4' },
+                view === 'items' 
+                  ? h(FolderTree, {
+                      folders,
+                      items: filteredItems,
+                      onSelectItem: setSelectedItem,
+                      selectedItemId: selectedItem?.id
+                    })
+                  : h('div', { className: 'space-y-3' },
+                      testRuns.length === 0 
+                        ? h('div', { className: 'text-center py-8 text-gray-500' },
+                            h(Play, { size: 48, className: 'mx-auto mb-2 opacity-50' }),
+                            h('p', {}, 'No test runs yet'),
+                            h('p', { className: 'text-sm' }, 'Create your first test run to start executing tests')
+                          )
+                        : testRuns.map(run =>
+                            h(TestRunCard, {
+                              key: run.id,
+                              run,
+                              onClick: () => setActiveTestRun(run)
+                            })
+                          )
+                    )
+              ),
+
+              h('div', { className: 'p-4 border-t' },
+                view === 'items' 
+                  ? h('button', {
+                      onClick: () => setShowNewItemForm(true),
+                      className: 'w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center justify-center gap-2'
+                    }, h(Plus, { size: 18 }), 'New Item')
+                  : h('button', {
+                      onClick: () => setShowNewRunForm(true),
+                      className: 'w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center justify-center gap-2'
+                    }, h(Play, { size: 18 }), 'New Test Run')
+                )
             ),
-            loading ? h('div', { className: 'flex-1 flex items-center justify-center' },
-              h('div', { className: 'text-center' },
-                h('div', { className: 'animate-spin rounded-full h-12 w-12 border-b-2 border-fresh-600 mx-auto mb-4' }),
-                h('p', { className: 'text-gray-600' }, 'Loading data...')
-              )
-            ) : !selectedProject ? h('div', { className: 'flex-1 flex items-center justify-center' },
-              h('div', { className: 'text-center' },
-                h(Filter, { size: 64, className: 'mx-auto mb-4 text-gray-300' }),
-                h('h2', { className: 'text-2xl font-bold text-gray-700 mb-2' }, 'No Project Selected'),
-                h('p', { className: 'text-gray-500 mb-4' }, projects.length === 0 ? 'Create your first project to get started' : 'Select a project from the dropdown above'),
-                projects.length === 0 && h('button', {
-                  onClick: () => setShowProjectForm(true),
-                  className: 'bg-fresh-600 text-white px-6 py-3 rounded-lg hover:bg-fresh-700 flex items-center gap-2 mx-auto'
-                }, h(Plus, { size: 20 }), ' Create First Project')
-              )
-            ) : showReports ? h('div', { className: 'p-6 overflow-y-auto h-full bg-gray-50' },
-              h('div', { className: 'max-w-7xl mx-auto' },
-                h('h2', { className: 'text-3xl font-bold mb-6' }, 'Project Reports & Analytics'),
-                h('div', { className: 'grid grid-cols-4 gap-4 mb-6' },
-                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
-                    h('div', { className: 'flex items-center justify-between' },
-                      h('div', {},
-                        h('p', { className: 'text-sm text-gray-500' }, 'Total Items'),
-                        h('p', { className: 'text-3xl font-bold' }, reportData.totalItems)
-                      ),
-                      h(BarChart3, { size: 32, className: 'text-fresh-500' })
-                    )
-                  ),
-                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
-                    h('div', { className: 'flex items-center justify-between' },
-                      h('div', {},
-                        h('p', { className: 'text-sm text-gray-500' }, 'Test Coverage'),
-                        h('p', { className: 'text-3xl font-bold' }, reportData.testCoverage + '%')
-                      ),
-                      h(PieChart, { size: 32, className: 'text-fresh-500' })
-                    )
-                  ),
-                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
-                    h('div', { className: 'flex items-center justify-between' },
-                      h('div', {},
-                        h('p', { className: 'text-sm text-gray-500' }, 'Traceability'),
-                        h('p', { className: 'text-3xl font-bold' }, reportData.traceabilityScore + '%')
-                      ),
-                      h(GitBranch, { size: 32, className: 'text-fresh-500' })
-                    )
-                  ),
-                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
-                    h('div', { className: 'flex items-center justify-between' },
-                      h('div', {},
-                        h('p', { className: 'text-sm text-gray-500' }, 'Relationships'),
-                        h('p', { className: 'text-3xl font-bold' }, reportData.totalRelationships)
-                      ),
-                      h(Link2, { size: 32, className: 'text-fresh-500' })
-                    )
+
+            // Main content
+            h('div', { className: 'flex-1 flex flex-col' },
+              h('div', { className: 'bg-white border-b p-4 flex items-center justify-between' },
+                h('button', {
+                  onClick: () => setSidebarOpen(!sidebarOpen),
+                  className: 'p-2 hover:bg-gray-100 rounded'
+                }, h(Menu, { size: 20 })),
+                h('div', { className: 'flex items-center gap-4' },
+                  selectedProject && h('span', { className: 'text-sm text-gray-600' }, 
+                    `Project: ${selectedProject.name}`
                   )
-                ),
-                h('div', { className: 'grid grid-cols-2 gap-6 mb-6' },
-                  h('div', { className: 'bg-white p-6 rounded-lg shadow' },
-                    h('h3', { className: 'text-xl font-semibold mb-4' }, 'Status Distribution'),
-                    h('div', { className: 'space-y-3' },
-                      Object.entries(reportData.statusDist).map(([status, count]) =>
-                        h('div', { key: status },
-                          h('div', { className: 'flex justify-between mb-1' },
-                            h('span', { className: 'capitalize' }, status),
-                            h('span', { className: 'font-semibold' }, count)
-                          ),
-                          h('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
-                            h('div', {
-                              className: `h-2 rounded-full ${
-                                status === 'approved' ? 'bg-green-500' :
-                                status === 'in-review' ? 'bg-yellow-500' :
-                                status === 'rejected' ? 'bg-red-500' : 'bg-gray-400'
-                              }`,
-                              style: { width: `${reportData.totalItems > 0 ? (count / reportData.totalItems * 100) : 0}%` }
-                            })
-                          )
-                        )
-                      )
-                    )
-                  ),
-                  h('div', { className: 'bg-white p-6 rounded-lg shadow' },
-                    h('h3', { className: 'text-xl font-semibold mb-4' }, 'Item Type Distribution'),
-                    h('div', { className: 'space-y-3' },
-                      Object.entries(reportData.typeDist).map(([type, count]) =>
-                        h('div', { key: type },
-                          h('div', { className: 'flex justify-between mb-1' },
-                            h('span', { className: 'capitalize' }, type),
-                            h('span', { className: 'font-semibold' }, count)
-                          ),
-                          h('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
-                            h('div', {
-                              className: `h-2 rounded-full ${
-                                type === 'epic' ? 'bg-purple-500' :
-                                type === 'requirement' ? 'bg-blue-500' :
-                                type === 'test-case' ? 'bg-green-500' : 'bg-red-500'
-                              }`,
-                              style: { width: `${reportData.totalItems > 0 ? (count / reportData.totalItems * 100) : 0}%` }
-                            })
-                          )
-                        )
-                      )
-                    )
-                  )
-                ),
-                h('div', { className: 'bg-white p-6 rounded-lg shadow mb-6' },
-                  h('h3', { className: 'text-xl font-semibold mb-4' }, 'Priority Distribution'),
-                  h('div', { className: 'grid grid-cols-4 gap-4' },
-                    Object.entries(reportData.priorityDist).map(([priority, count]) =>
-                      h('div', { key: priority, className: 'text-center' },
-                        h('div', {
-                          className: `text-4xl font-bold mb-2 ${
-                            priority === 'critical' ? 'text-red-600' :
-                            priority === 'high' ? 'text-orange-600' :
-                            priority === 'medium' ? 'text-yellow-600' : 'text-gray-600'
-                          }`
-                        }, count),
-                        h('div', { className: 'text-sm text-gray-500 capitalize' }, priority)
-                      )
-                    )
-                  )
-                ),
-                h('div', { className: 'bg-white p-6 rounded-lg shadow mb-6' },
-                  h('h3', { className: 'text-xl font-semibold mb-4' }, 'Status by Item Type'),
-                  h('div', { className: 'overflow-x-auto' },
-                    h('table', { className: 'w-full' },
-                      h('thead', {},
-                        h('tr', { className: 'border-b' },
-                          h('th', { className: 'text-left p-2' }, 'Type'),
-                          ...reportData.allStatuses.map(status => h('th', { key: status, className: 'text-center p-2 capitalize' }, status)),
-                          h('th', { className: 'text-center p-2' }, 'Total')
-                        )
-                      ),
-                      h('tbody', {},
-                        itemTypes.map(type =>
-                          h('tr', { key: type, className: 'border-b hover:bg-gray-50' },
-                            h('td', { className: 'p-2 capitalize font-medium' }, type),
-                            ...reportData.allStatuses.map(status => 
-                              h('td', { key: status, className: 'text-center p-2' }, reportData.statusByType[type][status] || 0)
-                            ),
-                            h('td', { className: 'text-center p-2 font-semibold' },
-                              Object.values(reportData.statusByType[type]).reduce((a, b) => a + b, 0)
+                )
+              ),
+
+              h('div', { className: 'flex-1 overflow-y-auto p-6' },
+                selectedItem 
+                  ? h('div', { className: 'bg-white rounded-lg shadow p-6 max-w-4xl mx-auto' },
+                      h('h2', { className: 'text-2xl font-bold mb-4' }, selectedItem.title),
+                      h('div', { className: 'prose max-w-none' },
+                        h('p', {}, selectedItem.description),
+                        selectedItem.type === 'test_case' && selectedItem.steps && h('div', { className: 'mt-4' },
+                          h('h3', { className: 'font-semibold' }, 'Test Steps:'),
+                          h('ol', { className: 'list-decimal list-inside' },
+                            selectedItem.steps.split('\n').map((step, i) =>
+                              h('li', { key: i }, step)
                             )
                           )
                         )
                       )
                     )
-                  )
-                ),
-                h('div', { className: 'bg-white p-6 rounded-lg shadow' },
-                  h('h3', { className: 'text-xl font-semibold mb-4' }, 'Owner Workload'),
-                  Object.keys(reportData.ownerWorkload).length > 0 ? 
-                    h('div', { className: 'space-y-3' },
-                      Object.entries(reportData.ownerWorkload).sort((a, b) => b[1] - a[1]).map(([owner, count]) =>
-                        h('div', { key: owner },
-                          h('div', { className: 'flex justify-between mb-1' },
-                            h('span', {}, owner),
-                            h('span', { className: 'font-semibold' }, `${count} items`)
-                          ),
-                          h('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
-                            h('div', {
-                              className: 'bg-fresh-500 h-2 rounded-full',
-                              style: { width: `${(count / reportData.totalItems * 100)}%` }
-                            })
-                          )
-                        )
+                  : view === 'test-runs' && !activeTestRun
+                    ? h('div', { className: 'text-center py-16 text-gray-400' },
+                        h(Play, { size: 64, className: 'mx-auto mb-4 opacity-50' }),
+                        h('p', { className: 'text-xl' }, 'Select a test run to view details')
                       )
-                    ) : h('p', { className: 'text-gray-500 text-center py-4' }, 'No owners assigned yet')
-                )
-              )
-            ) : h('div', { className: 'flex-1 flex overflow-hidden' },
-              h('div', { className: `${showDetailPanel && selectedItem ? 'w-1/3' : 'w-full'} bg-white border-r flex flex-col` },
-                h('div', { className: 'p-4 border-b space-y-3' },
-                  h(MyReviewsPanel),
-                  h(MyTestsPanel),
-                  h('div', { className: 'flex gap-2' },
-                    h('button', {
-                      onClick: () => setShowNewItemForm(true),
-                      className: 'flex-1 bg-fresh-600 text-white px-2 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-1 text-sm'
-                    }, h(Plus, { size: 14 }), ' New Item'),
-                    h('button', {
-                      onClick: () => setShowRelationshipForm(true),
-                      className: 'flex-1 bg-fresh-600 text-white px-2 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-1 text-sm'
-                    }, h(Link2, { size: 14 }), ' Link Items'),
-                    h('button', {
-                      onClick: () => setShowImportModal(true),
-                      className: 'flex-1 bg-fresh-600 text-white px-2 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-1 text-sm',
-                      title: 'Import requirements from CSV'
-                    }, 'Import')
-                  ),
-                  h('div', { className: 'flex gap-2' },
-                    h('div', { className: 'flex-1 relative' },
-                      h(Search, { size: 16, className: 'absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400' }),
-                      h('input', {
-                        type: 'text',
-                        placeholder: 'Search...',
-                        value: searchTerm,
-                        onChange: (e) => setSearchTerm(e.target.value),
-                        className: 'w-full border rounded pl-10 pr-3 py-2'
-                      })
-                    ),
-                    h('select', {
-                      value: filterType,
-                      onChange: (e) => {
-                        setFilterType(e.target.value);
-                        // Reset status filter when type changes
-                        setFilterStatus('all');
-                      },
-                      className: 'border rounded px-3 py-2'
-                    },
-                      h('option', { value: 'all' }, 'All Types'),
-                      ...itemTypes.map(type => h('option', { key: type, value: type }, type))
-                    ),
-                    h('select', {
-                      value: filterStatus,
-                      onChange: (e) => setFilterStatus(e.target.value),
-                      className: 'border rounded px-3 py-2'
-                    },
-                      h('option', { value: 'all' }, 'All Statuses'),
-                      // Show relevant statuses based on selected type
-                      ...(filterType === 'all' 
-                        ? // If showing all types, show all possible statuses
-                          [...new Set(Object.values(statuses).flat())].map(status => 
-                            h('option', { key: status, value: status }, status)
-                          )
-                        : // If a specific type is selected, show only its statuses
-                          (statuses[filterType] || []).map(status => 
-                            h('option', { key: status, value: status }, status)
-                          )
+                    : h('div', { className: 'text-center py-16 text-gray-400' },
+                        h(Filter, { size: 64, className: 'mx-auto mb-4 opacity-50' }),
+                        h('p', { className: 'text-xl' }, 'Select an item to view details')
                       )
-                    )
-                  ),
-                  h('div', { className: 'flex gap-2' },
-                    h('button', {
-                      onClick: collapseAll,
-                      className: 'flex-1 bg-gray-600 text-white px-3 py-2 rounded hover:bg-gray-700 text-sm'
-                    }, 'Collapse All'),
-                    h('select', {
-                      onChange: (e) => {
-                        if (e.target.value) {
-                          expandToLevel(e.target.value);
-                          e.target.value = ''; // Reset dropdown
-                        }
-                      },
-                      defaultValue: '',
-                      className: 'flex-1 border rounded px-3 py-2 text-sm bg-white'
-                    },
-                      h('option', { value: '', disabled: true }, 'Expand to...'),
-                      ...requirementLevels.map(level => 
-                        h('option', { key: level, value: level }, 
-                          level.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('-')
-                        )
-                      )
-                    )
-                  )
-                ),
-                h('div', { className: 'flex-1 overflow-y-auto' },
-                  rootItems.length > 0 ?
-                    rootItems.map(item => renderTreeItem(item)) :
-                    h('div', { className: 'p-4 text-center text-gray-500' }, 'No items yet. Click "New Item" to create one.')
-                )
-              ),
-              selectedItem && showDetailPanel && h('div', { className: 'flex-1 bg-white overflow-y-auto' },
-                h('div', { className: 'p-6' },
-                  h('div', { className: 'flex justify-between items-start mb-6' },
-                    h('div', { className: 'flex-1' },
-                      h('div', { className: 'flex items-center gap-3 mb-2' },
-                        h('span', {
-                          className: `px-3 py-1 text-sm rounded ${
-                            selectedItem.type === 'epic' ? 'bg-purple-100 text-purple-800' :
-                            selectedItem.type === 'requirement' ? 'bg-blue-100 text-blue-800' :
-                            selectedItem.type === 'test-case' ? 'bg-green-100 text-green-800' :
-                            'bg-red-100 text-red-800'
-                          }`
-                        }, selectedItem.type),
-                        h('span', { className: 'text-gray-500 text-sm' }, `ID: ${selectedItem.id} | Version: ${selectedItem.version}`)
-                      ),
-                      h('h2', { className: 'text-2xl font-bold' }, selectedItem.title)
-                    ),
-                    h('div', { className: 'flex gap-2' },
-                      h('button', {
-                        onClick: () => { setShowDetailPanel(false); setSelectedItem(null); },
-                        className: 'p-2 text-gray-400 hover:bg-gray-50 rounded',
-                        title: 'Close'
-                      }, h(X, { size: 20 })),
-                      selectedItem.type === 'requirement' && selectedItem.reviewer_email && (selectedItem.status === 'draft' || selectedItem.status === 'rejected') && h('button', {
-                        onClick: async () => {
-                          await handleUpdateItem(selectedItem.id, { status: 'in-review' });
-                          await refreshSelectedItem();
-                        },
-                        className: 'px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium',
-                        title: 'Send to reviewer'
-                      }, '📤 Send for Review'),
-                      selectedItem.type === 'test-case' && selectedItem.tester_email && selectedItem.status === 'draft' && h('button', {
-                        onClick: async () => {
-                          await handleUpdateItem(selectedItem.id, { status: 'ready-for-test' });
-                          await refreshSelectedItem();
-                        },
-                        className: 'px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium',
-                        title: 'Mark as ready for testing'
-                      }, '🧪 Ready for Test'),
-                      selectedItem.type === 'test-case' && selectedItem.status === 'failed' && h('button', {
-                        onClick: async () => {
-                          await handleUpdateItem(selectedItem.id, { status: 'ready-for-test' });
-                          await refreshSelectedItem();
-                        },
-                        className: 'px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium',
-                        title: 'Bug fixed - ready to re-test'
-                      }, '🔄 Ready for Re-test'),
-                      h('button', {
-                        onClick: () => setEditingItem(selectedItem),
-                        className: 'p-2 text-blue-600 hover:bg-blue-50 rounded'
-                      }, h(Edit2, { size: 20 })),
-                      h('button', {
-                        onClick: () => handleDeleteItem(selectedItem.id),
-                        className: 'p-2 text-red-600 hover:bg-red-50 rounded'
-                      }, h(Trash2, { size: 20 }))
-                    )
-                  ),
-                  h('div', { className: 'grid grid-cols-2 gap-4 mb-6' },
-                    // Hide status for epics since they're organizational containers
-                    selectedItem.type !== 'epic' && h('div', {},
-                      h('span', { className: 'text-sm text-gray-500' }, 'Status'),
-                      h('div', {
-                        className: `mt-1 px-3 py-1 rounded inline-block ${
-                          selectedItem.status === 'approved' ? 'bg-green-100 text-green-800' :
-                          selectedItem.status === 'in-review' ? 'bg-yellow-100 text-yellow-800' :
-                          selectedItem.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`
-                      }, selectedItem.status)
-                    ),
-                    h('div', {},
-                      h('span', { className: 'text-sm text-gray-500' }, 'Priority'),
-                      h('div', {
-                        className: `mt-1 px-3 py-1 rounded inline-block ${
-                          selectedItem.priority === 'critical' ? 'bg-red-100 text-red-800' :
-                          selectedItem.priority === 'high' ? 'bg-orange-100 text-orange-800' :
-                          selectedItem.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`
-                      }, selectedItem.priority)
-                    ),
-                    h('div', {},
-                      h('span', { className: 'text-sm text-gray-500' }, 'Owner'),
-                      h('p', { className: 'mt-1 font-medium' }, selectedItem.owner || 'Unassigned')
-                    )
-                  ),
-                  h('div', { className: 'mb-6' },
-                    h('h3', { className: 'font-semibold mb-2' }, 'Description'),
-                    h('p', { className: 'text-gray-700' }, selectedItem.description)
-                  ),
-
-                  selectedItem.type === 'requirement' && selectedItem.reviewer_email && h('div', { className: 'mb-6' },
-                    h('h3', { className: 'text-sm font-semibold text-gray-500 mb-1' }, 'Assigned Reviewer'),
-                    h('p', { className: 'text-gray-700' }, selectedItem.reviewer_email)
-                  ),
-
-                  selectedItem.type === 'test-case' && selectedItem.tester_email && h('div', { className: 'mb-6' },
-                    h('h3', { className: 'text-sm font-semibold text-gray-500 mb-1' }, 'Assigned Tester'),
-                    h('p', { className: 'text-gray-700' }, selectedItem.tester_email)
-                  ),
-
-                  selectedItem.type === 'requirement' && selectedItem.reviewer_email && selectedItem.status === 'in-review' && h('div', { className: 'mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded' },
-                    h('div', { className: 'flex justify-between items-start' },
-                      h('div', {},
-                        h('h3', { className: 'font-semibold text-blue-900 mb-1' }, '👤 Review Assignment'),
-                        h('p', { className: 'text-sm text-blue-800' }, `Assigned to: ${selectedItem.reviewer_email}`),
-                        h('p', { className: 'text-sm text-blue-700 mt-1' }, 'This item is awaiting review')
-                      ),
-                      user && user.email === selectedItem.reviewer_email &&
-                        h('div', { className: 'flex gap-2' },
-                          h('button', {
-                            onClick: () => {
-                              setApprovalAction('approve');
-                              setShowApprovalModal(true);
-                            },
-                            className: 'bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-medium flex items-center gap-2'
-                          }, h(CheckCircle, { size: 16 }), ' Approve'),
-                          h('button', {
-                            onClick: () => {
-                              setApprovalAction('reject');
-                              setShowApprovalModal(true);
-                            },
-                            className: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-medium flex items-center gap-2'
-                          }, h(XCircle, { size: 16 }), ' Reject')
-                        )
-                    )
-                  ),
-
-                  selectedItem.type === 'test-case' && selectedItem.tester_email && selectedItem.status === 'ready-for-test' && h('div', { className: 'mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded' },
-                    h('div', { className: 'flex justify-between items-start' },
-                      h('div', {},
-                        h('h3', { className: 'font-semibold text-blue-900 mb-1' }, '🧪 Test Execution'),
-                        h('p', { className: 'text-sm text-blue-800' }, `Assigned to: ${selectedItem.tester_email}`),
-                        h('p', { className: 'text-sm text-blue-700 mt-1' }, 'This test is ready for execution')
-                      ),
-                      user && user.email === selectedItem.tester_email &&
-                        h('div', { className: 'flex gap-2' },
-                          h('button', {
-                            onClick: () => {
-                              setApprovalAction('pass');
-                              setShowApprovalModal(true);
-                            },
-                            className: 'bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-medium flex items-center gap-2'
-                          }, h(CheckCircle, { size: 16 }), ' Pass'),
-                          h('button', {
-                            onClick: () => {
-                              setApprovalAction('fail');
-                              setShowApprovalModal(true);
-                            },
-                            className: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-medium flex items-center gap-2'
-                          }, h(XCircle, { size: 16 }), ' Fail')
-                        )
-                    )
-                  ),
-
-                  selectedItem.status === 'approved' && h('div', { className: 'mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded' },
-                    h('p', { className: 'text-sm text-green-700 font-medium' }, '✓ This item has been approved')
-                  ),
-
-                  selectedItem.status === 'passed' && h('div', { className: 'mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded' },
-                    h('p', { className: 'text-sm text-green-700 font-medium' }, '✓ This test has passed')
-                  ),
-
-                  selectedItem.status === 'failed' && h('div', { className: 'mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded' },
-                    h('div', {},
-                      h('p', { className: 'text-sm text-red-700 font-medium mb-2' }, '✗ This test has failed'),
-                      h('p', { className: 'text-sm text-red-600' }, 'Review the failure notes in the audit history below. Once the bug is fixed, click "Ready for Re-test" to execute this test again.')
-                    )
-                  ),
-
-                  selectedItem.rationale && h('div', { className: 'mb-6' },
-                    h('h3', { className: 'font-semibold mb-2' }, 'Rationale'),
-                    h('p', { className: 'text-gray-700' }, selectedItem.rationale)
-                  ),
-
-                  // IMPROVEMENT #1: Make test_method URLs clickable
-                  selectedItem.test_method && h('div', { className: 'mb-6' },
-                    h('h3', { className: 'font-semibold mb-2' }, 'Test Method'),
-                    // Check if test_method is a URL and make it clickable
-                    (() => {
-                      const isUrl = selectedItem.test_method.match(/^https?:\/\//);
-                      return isUrl 
-                        ? h('a', { 
-                            href: selectedItem.test_method, 
-                            target: '_blank',
-                            rel: 'noopener noreferrer',
-                            className: 'text-blue-600 hover:text-blue-800 underline flex items-center gap-2'
-                          }, 
-                          '🔗 ', selectedItem.test_method,
-                          h('span', { className: 'text-xs text-gray-500' }, '(opens in new tab)')
-                        )
-                        : h('p', { className: 'text-gray-700 whitespace-pre-wrap' }, selectedItem.test_method);
-                    })()
-                  ),
-                  h('div', { className: 'mb-6' },
-                    h('div', { className: 'flex items-center justify-between mb-2' },
-                      h('h3', { className: 'font-semibold flex items-center gap-2' },
-                        h(GitBranch, { size: 18 }), ' Relationships'
-                      ),
-                      h('div', { className: 'flex gap-2' },
-                        h('button', {
-                          onClick: () => setShowGraphView(false),
-                          className: `px-3 py-1 text-sm rounded ${!showGraphView ? 'bg-fresh-600 text-white' : 'bg-gray-200'}`
-                        }, 'List'),
-                        h('button', {
-                          onClick: () => setShowGraphView(true),
-                          className: `px-3 py-1 text-sm rounded ${showGraphView ? 'bg-fresh-600 text-white' : 'bg-gray-200'}`
-                        }, 'Graph')
-                      )
-                    ),
-                    showGraphView ? 
-                      h(RelationshipGraph, { item: selectedItem }) :
-                      // IMPROVEMENT #2: Make relationship items clickable for navigation
-                      h('div', { className: 'space-y-2' },
-                        ...getItemRelationships(selectedItem.id).outgoing.map((rel, idx) => {
-                          const target = items.find(i => i.id === rel.to_id);
-                          return target ? h('div', { key: idx, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded group' },
-                            h('span', { className: 'text-sm text-gray-600' }, rel.type),
-                            h(ChevronRight, { size: 16, className: 'text-gray-400' }),
-                            // Make the target item clickable to navigate to it
-                            h('button', {
-                              onClick: () => {
-                                setSelectedItem(target);
-                                setShowDetailPanel(true);
-                              },
-                              className: 'text-sm font-medium flex-1 text-left hover:text-blue-600 hover:underline'
-                            }, target.title),
-                            h('button', {
-                              onClick: () => handleDeleteRelationship(rel.id),
-                              className: 'opacity-0 group-hover:opacity-100 text-red-600 hover:bg-red-50 p-1 rounded transition-opacity'
-                            }, h(Trash2, { size: 14 }))
-                          ) : null;
-                        }),
-                        ...getItemRelationships(selectedItem.id).incoming.map((rel, idx) => {
-                          const source = items.find(i => i.id === rel.from_id);
-                          return source ? h('div', { key: `in-${idx}`, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded group' },
-                            // Make the source item clickable to navigate to it
-                            h('button', {
-                              onClick: () => {
-                                setSelectedItem(source);
-                                setShowDetailPanel(true);
-                              },
-                              className: 'text-sm font-medium hover:text-blue-600 hover:underline'
-                            }, source.title),
-                            h(ChevronRight, { size: 16, className: 'text-gray-400' }),
-                            h('span', { className: 'text-sm text-gray-600' }, rel.type),
-                            h('span', { className: 'text-sm text-gray-600 flex-1' }, ' this item'),
-                            h('button', {
-                              onClick: () => handleDeleteRelationship(rel.id),
-                              className: 'opacity-0 group-hover:opacity-100 text-red-600 hover:bg-red-50 p-1 rounded transition-opacity'
-                            }, h(Trash2, { size: 14 }))
-                          ) : null;
-                        }),
-                        getItemRelationships(selectedItem.id).outgoing.length === 0 && 
-                        getItemRelationships(selectedItem.id).incoming.length === 0 &&
-                          h('p', { className: 'text-gray-500 text-sm' }, 'No relationships yet')
-                      )
-                  ),
-                  h('div', {},
-                    h('h3', { className: 'font-semibold mb-2 flex items-center gap-2' },
-                      h(MessageSquare, { size: 18 }),
-                      ` Comments (${comments.filter(c => c.item_id === selectedItem.id).length})`
-                    ),
-                    h('div', { className: 'space-y-3 mb-4' },
-                      ...comments.filter(c => c.item_id === selectedItem.id).map(comment =>
-                        h('div', { key: comment.id, className: 'p-3 bg-gray-50 rounded' },
-                          h('div', { className: 'flex justify-between items-start mb-1' },
-                            h('span', { className: 'font-medium text-sm' }, comment.author),
-                            h('span', { className: 'text-xs text-gray-500' }, new Date(comment.timestamp).toLocaleString())
-                          ),
-                          h('p', { className: 'text-sm text-gray-700' }, comment.text)
-                        )
-                      )
-                    ),
-                    h('div', { className: 'flex gap-2' },
-                      h('input', {
-                        type: 'text',
-                        value: newComment,
-                        onChange: (e) => setNewComment(e.target.value),
-                        placeholder: 'Add a comment...',
-                        className: 'flex-1 border rounded px-3 py-2',
-                        onKeyPress: (e) => e.key === 'Enter' && handleAddComment(selectedItem.id)
-                      }),
-                      h('button', {
-                        onClick: () => handleAddComment(selectedItem.id),
-                        className: 'bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700'
-                      }, 'Post')
-                    )
-                  ),
-
-                  h('div', { className: 'mt-6 pt-6 border-t' },
-                    h('h3', { className: 'font-semibold mb-3 text-gray-700' }, '📋 Audit History'),
-                    h(AuditLogViewer, { itemId: selectedItem.id })
-                  )
-                )
-              ),
-              !selectedItem && h('div', { className: 'flex-1 bg-white flex items-center justify-center' },
-                h('div', { className: 'text-center text-gray-400' },
-                  h(Filter, { size: 48, className: 'mx-auto mb-4' }),
-                  h('p', {}, 'Select an item to view details')
-                )
               )
             ),
-            showNewItemForm && h(ItemForm, {
-              onSave: handleCreateItem,
-              onCancel: () => setShowNewItemForm(false)
+
+            // Modals
+            showNewRunForm && h(NewTestRunForm, {
+              testCases,
+              onSave: handleCreateTestRun,
+              onCancel: () => setShowNewRunForm(false)
             }),
-            editingItem && h(ItemForm, {
-              item: editingItem,
-              onSave: handleUpdateItem,
-              onCancel: () => setEditingItem(null)
-            }),
-            showRelationshipForm && h(RelationshipForm),
-            showImportModal && h(ImportCSVModal),
-            showProjectForm && h(ProjectForm, {
-              onSave: handleCreateProject,
-              onCancel: () => setShowProjectForm(false)
-            }),
-            showApprovalModal && h(ApprovalModal),
-            showAuthPrompt && !user && h(AuthPrompt)
+
+            activeTestRun && h(TestRunExecution, {
+              run: activeTestRun,
+              testCases: testCases.filter(tc => activeTestRun.testCaseIds.includes(tc.id)),
+              results: testResults.filter(r => r.runId === activeTestRun.id),
+              onUpdateResult: handleUpdateTestResult,
+              onClose: () => setActiveTestRun(null)
+            })
           );
         };
 
-        // Close project dropdown when clicking outside
-        if (typeof document !== 'undefined') {
-          document.addEventListener('click', (e) => {
-            if (!e.target.closest('.project-selector')) {
-              // Will be handled by React state
-            }
-          });
-        }
+        // Initialize app
+        const initApp = async () => {
+          await initDB();
+          const root = ReactDOM.createRoot(document.getElementById('root'));
+          root.render(h(RequirementsManager));
+        };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(h(RequirementsManager));
-        }
-        
-        // Start the app
         initApp();
     </script>
 </body>
