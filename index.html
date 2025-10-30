@@ -28,14 +28,6 @@
             }
         }
     </script>
-    <style>
-        .folder-item { cursor: pointer; user-select: none; transition: background-color 0.15s; }
-        .folder-item:hover { background-color: #f3f4f6; }
-        .folder-expanded { font-weight: 600; }
-        .folder-children { padding-left: 16px; margin-left: 8px; border-left: 2px solid #e5e7eb; }
-        .test-run-card { transition: all 0.2s ease; }
-        .test-run-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    </style>
 </head>
 <body>
     <div id="root"></div>
@@ -95,13 +87,6 @@
         const CheckCircle = ({ size }) => Icon({ size, d: [h('path', { key: 1, d: 'M22 11.08V12a10 10 0 1 1-5.93-9.14' }), h('polyline', { key: 2, points: '22 4 12 14.01 9 11.01' })] });
         const XCircle = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 12, cy: 12, r: 10 }), h('line', { key: 2, x1: 15, y1: 9, x2: 9, y2: 15 }), h('line', { key: 3, x1: 9, y1: 9, x2: 15, y2: 15 })] });
         const GripVertical = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 9, cy: 12, r: 1 }), h('circle', { key: 2, cx: 9, cy: 5, r: 1 }), h('circle', { key: 3, cx: 9, cy: 19, r: 1 }), h('circle', { key: 4, cx: 15, cy: 12, r: 1 }), h('circle', { key: 5, cx: 15, cy: 5, r: 1 }), h('circle', { key: 6, cx: 15, cy: 19, r: 1 })] });
-        // NEW ICONS for folders and test runs
-        const Folder = ({ size }) => Icon({ size, d: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' });
-        const FolderOpen = ({ size }) => Icon({ size, d: [h('path', { key: 1, d: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' }), h('path', { key: 2, d: 'M2 8v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2H8' })] });
-        const Play = ({ size }) => Icon({ size, d: 'M5 3l14 9-14 9V3z' });
-        const HelpCircle = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 12, cy: 12, r: 10 }), h('path', { key: 2, d: 'M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3' }), h('line', { key: 3, x1: 12, y1: 17, x2: 12.01, y2: 17 })] });
-        const Clock = ({ size }) => Icon({ size, d: [h('circle', { key: 1, cx: 12, cy: 12, r: 10 }), h('polyline', { key: 2, points: '12 6 12 12 16 14' })] });
-        const List = ({ size }) => Icon({ size, d: [h('line', { key: 1, x1: 8, y1: 6, x2: 21, y2: 6 }), h('line', { key: 2, x1: 8, y1: 12, x2: 21, y2: 12 }), h('line', { key: 3, x1: 8, y1: 18, x2: 21, y2: 18 }), h('line', { key: 4, x1: 3, y1: 6, x2: 3.01, y2: 6 }), h('line', { key: 5, x1: 3, y1: 12, x2: 3.01, y2: 12 }), h('line', { key: 6, x1: 3, y1: 18, x2: 3.01, y2: 18 })] });
 
         const RequirementsManager = () => {
           const [supabaseUrl, setSupabaseUrl] = useState(DEV_SUPABASE_URL || '');
@@ -144,15 +129,6 @@
           const [showImportModal, setShowImportModal] = useState(false);
           const [importFile, setImportFile] = useState(null);
           
-          // NEW STATE for folders and test runs
-          const [folders, setFolders] = useState([]);
-          const [expandedFolders, setExpandedFolders] = useState(new Set());
-          const [testRuns, setTestRuns] = useState([]);
-          const [testResults, setTestResults] = useState([]);
-          const [showNewRunForm, setShowNewRunForm] = useState(false);
-          const [activeTestRun, setActiveTestRun] = useState(null);
-          const [viewMode, setViewMode] = useState('tree'); // 'tree' or 'test-runs'
-          
           const itemTypes = ['epic', 'requirement', 'test-case', 'defect'];
           const statuses = {
             epic: ['draft', 'in-review', 'approved', 'rejected'],
@@ -185,6 +161,7 @@
               setSupabase(client);
               setIsConfigured(true);
               
+              // Set up auth state listener
               client.auth.onAuthStateChange((event, session) => {
                 setUser(session?.user || null);
                 if (session?.user) {
@@ -192,6 +169,7 @@
                 }
               });
               
+              // Check for existing session
               client.auth.getSession().then(({ data: { session } }) => {
                 setUser(session?.user || null);
                 if (session?.user) {
@@ -207,6 +185,7 @@
             if (!supabase) return;
             
             try {
+              // Get the full current URL including path (but strip any existing query params or hash)
               const currentUrl = window.location.origin + window.location.pathname;
               
               const { error } = await supabase.auth.signInWithOAuth({
@@ -228,6 +207,7 @@
             await supabase.auth.signOut();
             setUser(null);
             setShowAuthPrompt(true);
+            // Clear all view state
             setSelectedItem(null);
             setEditingItem(null);
             setSelectedProject(null);
@@ -236,26 +216,17 @@
             setComments([]);
             setAuditLogs([]);
             setProjects([]);
-            setFolders([]);
-            setTestRuns([]);
-            setTestResults([]);
           };
 
           const loadData = async (client) => {
             setLoading(true);
             try {
-              const [itemsRes, relationshipsRes, commentsRes, projectsRes, auditLogsRes, foldersRes, testRunsRes, testResultsRes] = await Promise.all([
+              const [itemsRes, relationshipsRes, commentsRes, projectsRes, auditLogsRes] = await Promise.all([
                 client.from('items').select('*').order('id'),
                 client.from('relationships').select('*'),
                 client.from('comments').select('*').order('timestamp', { ascending: false }),
                 client.from('projects').select('*').order('name'),
-                client.from('audit_logs').select('*').order('timestamp', { ascending: false }),
-                // NEW: Load folders
-                client.from('folders').select('*').order('name').then(res => res || { data: [], error: null }),
-                // NEW: Load test runs
-                client.from('test_runs').select('*').order('created_at', { ascending: false }).then(res => res || { data: [], error: null }),
-                // NEW: Load test results
-                client.from('test_results').select('*').then(res => res || { data: [], error: null })
+                client.from('audit_logs').select('*').order('timestamp', { ascending: false })
               ]);
               
               if (itemsRes.data) setItems(itemsRes.data);
@@ -264,18 +235,19 @@
               if (auditLogsRes.data) setAuditLogs(auditLogsRes.data);
               if (projectsRes.data) {
                 setProjects(projectsRes.data);
+                // Auto-select first project if none selected
+                // Only auto-select on initial load, not when refreshing data
+                // Never auto-select project
+                if (false) {
+                  setSelectedProject(projectsRes.data[0]);
+                }
               }
-              // NEW: Set folders and test data
-              if (foldersRes.data) setFolders(foldersRes.data);
-              if (testRunsRes.data) setTestRuns(testRunsRes.data);
-              if (testResultsRes.data) setTestResults(testResultsRes.data);
             } catch (error) {
               console.error('Error loading data:', error);
               alert('Error loading data. Please check your Supabase credentials and table setup.');
             }
             setLoading(false);
           };
-
           const createAuditLog = async (itemId, action, fieldName, oldValue, newValue) => {
             if (!supabase || !user) return;
             
@@ -303,6 +275,7 @@
             }
           };
 
+
           const setupDatabase = async () => {
             alert(`Please run these SQL commands in your Supabase SQL editor:
 
@@ -318,7 +291,6 @@ CREATE TABLE projects (
 CREATE TABLE items (
   id BIGSERIAL PRIMARY KEY,
   project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
-  folder_id BIGINT,
   type TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
@@ -330,8 +302,6 @@ CREATE TABLE items (
   version INTEGER DEFAULT 1,
   parent_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
   children INTEGER[] DEFAULT '{}',
-  reviewer_email TEXT,
-  tester_email TEXT,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -348,69 +318,19 @@ CREATE TABLE comments (
   id BIGSERIAL PRIMARY KEY,
   item_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
   author TEXT NOT NULL,
-  author_email TEXT,
   text TEXT NOT NULL,
   timestamp TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE audit_logs (
-  id BIGSERIAL PRIMARY KEY,
-  item_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
-  user_email TEXT NOT NULL,
-  user_name TEXT,
-  action TEXT NOT NULL,
-  field_name TEXT,
-  old_value TEXT,
-  new_value TEXT,
-  timestamp TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE folders (
-  id BIGSERIAL PRIMARY KEY,
-  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
-  parent_id BIGINT REFERENCES folders(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE test_runs (
-  id BIGSERIAL PRIMARY KEY,
-  project_id BIGINT REFERENCES projects(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  description TEXT,
-  status TEXT DEFAULT 'planned',
-  created_by TEXT,
-  created_at TIMESTAMP DEFAULT NOW(),
-  completed_at TIMESTAMP
-);
-
-CREATE TABLE test_results (
-  id BIGSERIAL PRIMARY KEY,
-  test_run_id BIGINT REFERENCES test_runs(id) ON DELETE CASCADE,
-  test_case_id BIGINT REFERENCES items(id) ON DELETE CASCADE,
-  status TEXT NOT NULL,
-  notes TEXT,
-  executed_by TEXT,
-  executed_at TIMESTAMP DEFAULT NOW()
 );
 
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE relationships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE folders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE test_runs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE test_results ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Enable all operations" ON projects FOR ALL USING (true);
 CREATE POLICY "Enable all operations" ON items FOR ALL USING (true);
 CREATE POLICY "Enable all operations" ON relationships FOR ALL USING (true);
-CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);
-CREATE POLICY "Enable all operations" ON audit_logs FOR ALL USING (true);
-CREATE POLICY "Enable all operations" ON folders FOR ALL USING (true);
-CREATE POLICY "Enable all operations" ON test_runs FOR ALL USING (true);
-CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
+CREATE POLICY "Enable all operations" ON comments FOR ALL USING (true);`);
           };
 
           const toggleExpand = (id) => {
@@ -422,36 +342,35 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             });
           };
 
-          const toggleFolder = (id) => {
-            setExpandedFolders(prev => {
-              const next = new Set(prev);
-              if (next.has(id)) next.delete(id);
-              else next.add(id);
-              return next;
-            });
-          };
-
           const collapseAll = () => {
+            // Collapse everything - clear the expanded items set
             setExpandedItems(new Set());
           };
 
           const expandToLevel = (targetLevel) => {
+            // Expand all items down to and including the target requirement level
             const newExpandedItems = new Set();
             
+            // Helper function to determine if an item should be expanded based on target level
             const shouldExpand = (item) => {
+              // Always expand epics and non-requirement types if they have children
               if (item.type !== 'requirement') {
                 return item.children && item.children.length > 0;
               }
               
+              // For requirements, check if this level is at or above the target level
               const itemLevel = requirementLevels.indexOf(item.level || 'system');
               const targetLevelIndex = requirementLevels.indexOf(targetLevel);
               
+              // Expand if this requirement is at or above the target level and has children
               return itemLevel <= targetLevelIndex && item.children && item.children.length > 0;
             };
             
+            // Recursively process items to determine what should be expanded
             const processItem = (item) => {
               if (shouldExpand(item)) {
                 newExpandedItems.add(item.id);
+                // Recursively process children
                 if (item.children) {
                   item.children.forEach(childId => {
                     const childItem = items.find(i => i.id === childId);
@@ -461,11 +380,13 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
               }
             };
             
+            // Start with root items
             items.filter(item => !item.parent_id).forEach(processItem);
             
             setExpandedItems(newExpandedItems);
           };
 
+          
           const refreshSelectedItem = async () => {
             if (!selectedItem || !supabase) return;
             
@@ -481,17 +402,19 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
               if (data) {
                 setSelectedItem(data);
                 setItems(prev => prev.map(i => i.id === data.id ? data : i));
-                setEditingItem(null);
+                setEditingItem(null); // Close edit mode to show updated view
               }
             } catch (error) {
               console.error('Error refreshing item:', error);
             }
           };
 
+          
           const handleUpdateParent = async (itemId, newParentId) => {
             if (!supabase) return;
             
             try {
+              // Get fresh data from database to ensure we have current state
               const { data: currentItem } = await supabase
                 .from('items')
                 .select('*')
@@ -500,6 +423,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
               
               if (!currentItem) return;
               
+              // Remove from old parent's children array
               if (currentItem.parent_id) {
                 const { data: oldParent } = await supabase
                   .from('items')
@@ -516,11 +440,13 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                 }
               }
               
+              // Update item's parent_id
               await supabase
                 .from('items')
                 .update({ parent_id: newParentId })
                 .eq('id', itemId);
               
+              // Add to new parent's children array
               if (newParentId) {
                 const { data: newParent } = await supabase
                   .from('items')
@@ -537,6 +463,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                 }
               }
               
+              // Reload all data to get fresh state
               await loadData(supabase);
               
               console.log('Parent updated successfully');
@@ -546,36 +473,32 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             }
           };
 
-          const handleCreateItem = async (formData) => {
-            if (!supabase) return;
+          const handleCreateItem = async (formData) => {            if (!supabase) return;
             
             try {
               const newItem = {
-                project_id: selectedProject.id,
-                type: formData.type,
-                title: formData.title,
-                description: formData.description,
-                rationale: formData.rationale || null,
-                test_method: formData.test_method || null,
-                status: formData.status,
-                priority: formData.priority || null,
-                owner: formData.owner || null,
-                reviewer_email: formData.reviewer_email || null,
-                tester_email: formData.tester_email || null,
-                parent_id: formData.parentId,
-                folder_id: formData.folderId || null,
-                children: [],
-                version: 1,
-                level: formData.level || 'system'
-              };
+                  project_id: selectedProject.id,  // <-- ADD THIS LINE!
+                  type: formData.type,
+                  title: formData.title,
+                  description: formData.description,
+                  rationale: formData.rationale || null,
+                  test_method: formData.test_method || null,
+                  status: formData.status,
+                  priority: formData.priority || null,
+                  owner: formData.owner || null,
+                  reviewer_email: formData.reviewer_email || null,
+                  parent_id: formData.parentId,
+                  children: [],
+                  version: 1
 
-              const { data, error } = await supabase.from('items').insert([newItem]).select();
+              };              const { data, error } = await supabase.from('items').insert([newItem]).select();
               
               if (error) throw error;
               
               if (data && data[0]) {
                 setItems([...items, data[0]]);
                 
+                // Create relationships if references provided (for test cases)
                 if ((formData.references || formData.relationships) && (formData.references?.length > 0 || formData.relationships?.length > 0)) {
                   const relationshipsToCreate = formData.references || formData.relationships || [];
                   for (const rel of relationshipsToCreate) {
@@ -584,6 +507,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                       : { from_id: data[0].id, to_id: rel.to, type: rel.type };
                     await supabase.from('relationships').insert([relData]);
                   }
+                  // Reload relationships
                   const { data: newRels } = await supabase.from('relationships').select('*');
                   if (newRels) setRelationships(newRels);
                 }
@@ -618,9 +542,13 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             try {
               const item = items.find(i => i.id === id);
               
+              // If item is approved and being edited, reset to draft only if content actually changed
               if (item.status === 'approved' && updates && Object.keys(updates).length > 0) {
+                // Check if any values actually changed
                 const hasRealChanges = Object.keys(updates).some(key => {
-                  if (key === 'reviewer_email' || key === 'tester_email') return false;
+                  // Skip reviewer_email - that doesn't count as content change
+                  if (key === 'reviewer_email') return false;
+                  // Check if the value actually differs
                   return updates[key] !== item[key];
                 });
                 
@@ -629,6 +557,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                 }
               }
               
+              // Create audit logs for each changed field
               for (const [key, newValue] of Object.entries(updates)) {
                 const oldValue = item[key];
                 if (oldValue !== newValue) {
@@ -654,6 +583,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
               ));
               setEditingItem(null);
               
+              // IMPROVEMENT #3: Refresh the detail panel after editing to show changes immediately
               await refreshSelectedItem();
             } catch (error) {
               console.error('Error updating item:', error);
@@ -667,6 +597,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             const item = items.find(i => i.id === itemId);
             if (!item) return;
             
+            // Check if user is authorized (reviewer for requirements, tester for test cases)
             const isAuthorized = (item.type === 'test-case' && item.tester_email === user.email) ||
                                  (item.type !== 'test-case' && item.reviewer_email === user.email);
             
@@ -677,15 +608,16 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             }
             
             try {
+              // Determine new status based on action
               let newStatus;
               if (action === 'approve') {
                 newStatus = 'approved';
               } else if (action === 'reject') {
-                newStatus = 'draft';
+                newStatus = 'draft'; // Rejected items return to draft for revision
               } else if (action === 'pass') {
                 newStatus = 'passed';
               } else if (action === 'fail') {
-                newStatus = 'failed';
+                newStatus = 'failed'; // Failed tests get failed status for visibility
               }
               
               await createAuditLog(itemId, action, 'status', item.status, newStatus);
@@ -747,25 +679,22 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             }
           };
 
-          const handleCreateProject = async (projectData) => {
-            if (!supabase || !user) return;
-            
-            try {
-              const { data, error } = await supabase.from('projects').insert([projectData]).select();
-              
-              if (error) throw error;
-              
-              if (data && data[0]) {
-                setProjects([...projects, data[0]]);
-                setSelectedProject(data[0]);
-              }
-              
-              setShowProjectForm(false);
-            } catch (error) {
-              console.error('Error creating project:', error);
-              alert('Error creating project: ' + error.message);
-            }
-          };
+const handleCreateProject = async (projectData) => {
+  if (!supabase || !user) return;
+  
+  try {    const { data, error } = await supabase.from('projects').insert([projectData]).select();
+    
+    if (error) throw error;
+    
+    if (data && data[0]) {      setProjects([...projects, data[0]]);
+      setSelectedProject(data[0]);    }
+    
+    setShowProjectForm(false);
+  } catch (error) {
+    console.error('Error creating project:', error);
+    alert('Error creating project: ' + error.message);
+  }
+};
 
           const handleAddComment = async (itemId) => {
             if (!supabase || !newComment.trim() || !user) return;
@@ -834,91 +763,8 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             }
           };
 
-          // NEW: Test Run Handlers
-          const handleCreateTestRun = async (runData) => {
-            if (!supabase || !user || !selectedProject) return;
-            
-            try {
-              const newRun = {
-                project_id: selectedProject.id,
-                name: runData.name,
-                description: runData.description,
-                status: 'planned',
-                created_by: user.email,
-                created_at: new Date().toISOString()
-              };
-              
-              const { data, error } = await supabase.from('test_runs').insert([newRun]).select();
-              
-              if (error) throw error;
-              
-              if (data && data[0]) {
-                // Create test result placeholders
-                const results = runData.testCaseIds.map(tcId => ({
-                  test_run_id: data[0].id,
-                  test_case_id: tcId,
-                  status: 'pending'
-                }));
-                
-                await supabase.from('test_results').insert(results);
-                
-                setTestRuns([data[0], ...testRuns]);
-                setShowNewRunForm(false);
-                loadData(supabase);
-              }
-            } catch (error) {
-              console.error('Error creating test run:', error);
-              alert('Error creating test run: ' + error.message);
-            }
-          };
-
-          const handleUpdateTestResult = async (runId, testCaseId, status, notes) => {
-            if (!supabase || !user) return;
-            
-            try {
-              const result = {
-                test_run_id: runId,
-                test_case_id: testCaseId,
-                status: status,
-                notes: notes,
-                executed_by: user.email,
-                executed_at: new Date().toISOString()
-              };
-              
-              const { data, error } = await supabase
-                .from('test_results')
-                .upsert(result, { onConflict: 'test_run_id,test_case_id' })
-                .select();
-              
-              if (error) throw error;
-              
-              // Update run status
-              const runResults = testResults.filter(r => r.test_run_id === runId);
-              const allCompleted = runResults.every(r => r.status !== 'pending');
-              
-              if (allCompleted) {
-                await supabase
-                  .from('test_runs')
-                  .update({ 
-                    status: 'completed',
-                    completed_at: new Date().toISOString()
-                  })
-                  .eq('id', runId);
-              } else {
-                await supabase
-                  .from('test_runs')
-                  .update({ status: 'in_progress' })
-                  .eq('id', runId);
-              }
-              
-              loadData(supabase);
-            } catch (error) {
-              console.error('Error updating test result:', error);
-              alert('Error updating test result: ' + error.message);
-            }
-          };
-
           const downloadCSVTemplate = () => {
+            // Create a template CSV with headers and example rows
             const headers = ['type', 'title', 'description', 'rationale', 'test_method', 'status', 'priority', 'owner', 'level', 'reviewer_email', 'tester_email'];
             const exampleRows = [
               ['requirement', 'System shall support user authentication', 'The system must authenticate users via username and password', 'Security requirement to protect user data', '', 'draft', 'high', 'john@example.com', 'system', 'jane@example.com', ''],
@@ -927,9 +773,11 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
               ['epic', 'User Authentication Feature', 'Epic to group all authentication-related requirements', '', '', 'draft', 'high', 'john@example.com', '', '', '']
             ];
             
+            // Convert to CSV format
             const csvContent = [
               headers.join(','),
               ...exampleRows.map(row => row.map(cell => {
+                // Escape cells that contain commas or quotes
                 if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
                   return '"' + cell.replace(/"/g, '""') + '"';
                 }
@@ -937,6 +785,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
               }).join(','))
             ].join('\n');
             
+            // Create download link
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
@@ -960,8 +809,10 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                 return;
               }
               
+              // Parse header
               const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
               
+              // Parse rows
               const rows = [];
               for (let i = 1; i < lines.length; i++) {
                 const line = lines[i];
@@ -1002,24 +853,28 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                 return;
               }
               
+              // Validate and import each row
               let successCount = 0;
               let errorCount = 0;
               const errors = [];
               
               for (const row of rows) {
                 try {
+                  // Validate required fields
                   if (!row.type || !row.title) {
                     errors.push(`Row skipped: Missing type or title - "${row.title || 'untitled'}"`);
                     errorCount++;
                     continue;
                   }
                   
+                  // Validate type
                   if (!itemTypes.includes(row.type)) {
                     errors.push(`Row skipped: Invalid type "${row.type}" for "${row.title}"`);
                     errorCount++;
                     continue;
                   }
                   
+                  // Build item object
                   const newItem = {
                     project_id: selectedProject.id,
                     type: row.type,
@@ -1029,6 +884,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                     version: 1
                   };
                   
+                  // Add optional fields based on type
                   if (row.priority) newItem.priority = row.priority;
                   if (row.owner) newItem.owner = row.owner;
                   if (row.rationale && row.type === 'requirement') newItem.rationale = row.rationale;
@@ -1041,6 +897,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                     newItem.tester_email = row.tester_email;
                   }
                   
+                  // Insert into database
                   const { data, error } = await supabase.from('items').insert([newItem]).select();
                   
                   if (error) throw error;
@@ -1056,6 +913,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                 }
               }
               
+              // Show results
               let message = `Import complete!\n\n`;
               message += `✓ Successfully imported: ${successCount} items\n`;
               if (errorCount > 0) {
@@ -1086,6 +944,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
           };
 
           const reportData = useMemo(() => {
+            // Get all unique statuses actually used in the data
             const allStatuses = [...new Set(items.map(i => i.status))];
             
             const statusByType = {};
@@ -1144,381 +1003,6 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             };
           }, [items, relationships, comments]);
 
-          // NEW: Folder Tree Component
-          const FolderTree = () => {
-            const buildFolderTree = () => {
-              const folderMap = new Map();
-              folders.forEach(folder => {
-                folderMap.set(folder.id, { ...folder, children: [], items: [] });
-              });
-
-              const rootFolders = [];
-              folders.forEach(folder => {
-                const node = folderMap.get(folder.id);
-                if (folder.parent_id) {
-                  const parent = folderMap.get(folder.parent_id);
-                  if (parent) parent.children.push(node);
-                } else {
-                  rootFolders.push(node);
-                }
-              });
-
-              items.forEach(item => {
-                if (item.folder_id) {
-                  const folder = folderMap.get(item.folder_id);
-                  if (folder) folder.items.push(item);
-                }
-              });
-
-              return { rootFolders, unorganized: items.filter(i => !i.folder_id) };
-            };
-
-            const renderFolder = (folder, depth = 0) => {
-              const isExpanded = expandedFolders.has(folder.id);
-              const hasContent = folder.children.length > 0 || folder.items.length > 0;
-
-              return h('div', { key: folder.id },
-                h('div', {
-                  className: `folder-item flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 ${isExpanded ? 'bg-gray-50' : ''}`,
-                  style: { paddingLeft: `${depth * 16 + 8}px` },
-                  onClick: () => hasContent && toggleFolder(folder.id)
-                },
-                  hasContent && (isExpanded ? h(ChevronDown, { size: 14 }) : h(ChevronRight, { size: 14 })),
-                  !hasContent && h('div', { className: 'w-3.5' }),
-                  h(isExpanded ? FolderOpen : Folder, { size: 16, className: 'text-yellow-600' }),
-                  h('span', { className: 'flex-1 text-sm' }, folder.name),
-                  h('span', { className: 'text-xs text-gray-400' }, folder.items.length)
-                ),
-                isExpanded && hasContent && h('div', {},
-                  folder.children.map(child => renderFolder(child, depth + 1)),
-                  folder.items.map(item => renderTreeItem(item, depth + 1))
-                )
-              );
-            };
-
-            const renderTreeItem = (item, depth = 0) => {
-              const hasChildren = item.children && item.children.length > 0;
-              const isExpanded = expandedItems.has(item.id);
-              const isSelected = selectedItem?.id === item.id;
-
-              return h('div', { key: item.id },
-                h('div', {
-                  className: `flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-gray-50 rounded ${isSelected ? 'bg-fresh-50 border-l-4 border-fresh-500' : ''}`,
-                  style: { paddingLeft: `${depth * 16 + 8}px` },
-                  onClick: () => { setSelectedItem(item); setShowDetailPanel(true); }
-                },
-                  hasChildren && h('button', {
-                    onClick: (e) => { e.stopPropagation(); toggleExpand(item.id); },
-                    className: 'p-0'
-                  }, isExpanded ? h(ChevronDown, { size: 14 }) : h(ChevronRight, { size: 14 })),
-                  !hasChildren && h('div', { className: 'w-3.5' }),
-                  h('span', {
-                    className: `px-1.5 py-0.5 text-xs rounded ${
-                      item.type === 'epic' ? 'bg-purple-100 text-purple-700' :
-                      item.type === 'requirement' ? 'bg-blue-100 text-blue-700' :
-                      item.type === 'test-case' ? 'bg-green-100 text-green-700' :
-                      'bg-red-100 text-red-700'
-                    }`
-                  }, item.type === 'requirement' && item.level ? item.level.slice(0, 3) : item.type.slice(0, 3)),
-                  h('span', { className: 'flex-1 text-sm truncate' }, item.title),
-                  item.type !== 'epic' && h('span', {
-                    className: `px-1.5 py-0.5 text-xs rounded ${
-                      item.status === 'approved' || item.status === 'passed' ? 'bg-green-100 text-green-700' :
-                      item.status === 'in-review' || item.status === 'ready-for-test' ? 'bg-yellow-100 text-yellow-700' :
-                      item.status === 'rejected' || item.status === 'failed' ? 'bg-red-100 text-red-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`
-                  }, item.status)
-                ),
-                isExpanded && hasChildren && h('div', {},
-                  item.children.map(childId => {
-                    const child = items.find(i => i.id === childId);
-                    return child ? renderTreeItem(child, depth + 1) : null;
-                  })
-                )
-              );
-            };
-
-            const { rootFolders, unorganized } = buildFolderTree();
-
-            return h('div', { className: 'space-y-1' },
-              rootFolders.map(folder => renderFolder(folder)),
-              unorganized.length > 0 && h('div', { className: 'mt-3 pt-3 border-t' },
-                h('div', { className: 'px-2 py-1 text-xs font-semibold text-gray-500 uppercase' }, 'Unorganized'),
-                unorganized.map(item => renderTreeItem(item, 0))
-              )
-            );
-          };
-
-          // NEW: Test Run Card Component
-          const TestRunCard = ({ run }) => {
-            const results = testResults.filter(r => r.test_run_id === run.id);
-            const stats = {
-              total: results.length,
-              passed: results.filter(r => r.status === 'pass').length,
-              failed: results.filter(r => r.status === 'fail').length,
-              blocked: results.filter(r => r.status === 'block').length,
-              pending: results.filter(r => r.status === 'pending').length
-            };
-
-            const progress = stats.total > 0 ? ((stats.passed + stats.failed + stats.blocked) / stats.total) * 100 : 0;
-
-            return h('div', {
-              className: 'test-run-card bg-white rounded-lg border p-4 hover:shadow-lg cursor-pointer',
-              onClick: () => setActiveTestRun(run)
-            },
-              h('div', { className: 'flex items-start justify-between mb-3' },
-                h('div', {},
-                  h('h3', { className: 'font-semibold' }, run.name),
-                  h('p', { className: 'text-sm text-gray-600 mt-1' }, run.description)
-                ),
-                h('span', {
-                  className: `px-2 py-1 text-xs rounded ${
-                    run.status === 'completed' ? 'bg-green-100 text-green-700' :
-                    run.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`
-                }, run.status)
-              ),
-              h('div', { className: 'mb-3' },
-                h('div', { className: 'h-2 bg-gray-200 rounded-full overflow-hidden' },
-                  h('div', {
-                    className: 'h-full bg-fresh-500 transition-all',
-                    style: { width: `${progress}%` }
-                  })
-                )
-              ),
-              h('div', { className: 'grid grid-cols-5 gap-2 text-center text-xs' },
-                h('div', {},
-                  h('div', { className: 'font-semibold text-gray-700' }, stats.total),
-                  h('div', { className: 'text-gray-500' }, 'Total')
-                ),
-                h('div', {},
-                  h('div', { className: 'font-semibold text-green-600' }, stats.passed),
-                  h('div', { className: 'text-gray-500' }, 'Pass')
-                ),
-                h('div', {},
-                  h('div', { className: 'font-semibold text-red-600' }, stats.failed),
-                  h('div', { className: 'text-gray-500' }, 'Fail')
-                ),
-                h('div', {},
-                  h('div', { className: 'font-semibold text-yellow-600' }, stats.blocked),
-                  h('div', { className: 'text-gray-500' }, 'Block')
-                ),
-                h('div', {},
-                  h('div', { className: 'font-semibold text-gray-600' }, stats.pending),
-                  h('div', { className: 'text-gray-500' }, 'Pending')
-                )
-              )
-            );
-          };
-
-          // NEW: Test Run Execution Modal
-          const TestRunExecutionModal = ({ run, onClose }) => {
-            const [currentIndex, setCurrentIndex] = useState(0);
-            const [notes, setNotes] = useState('');
-
-            const runResults = testResults.filter(r => r.test_run_id === run.id);
-            const testCaseIds = runResults.map(r => r.test_case_id);
-            const testCases = items.filter(item => testCaseIds.includes(item.id));
-            
-            if (testCases.length === 0) {
-              return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
-                h('div', { className: 'bg-white rounded-lg p-6 max-w-md' },
-                  h('p', {}, 'No test cases found for this run'),
-                  h('button', {
-                    onClick: onClose,
-                    className: 'mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300'
-                  }, 'Close')
-                )
-              );
-            }
-
-            const currentTestCase = testCases[currentIndex];
-            const currentResult = runResults.find(r => r.test_case_id === currentTestCase.id);
-
-            const handleExecute = (status) => {
-              handleUpdateTestResult(run.id, currentTestCase.id, status, notes);
-              setNotes('');
-              if (currentIndex < testCases.length - 1) {
-                setCurrentIndex(currentIndex + 1);
-              }
-            };
-
-            return h('div', {
-              className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
-              onClick: onClose
-            },
-              h('div', {
-                className: 'bg-white rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto',
-                onClick: (e) => e.stopPropagation()
-              },
-                h('div', { className: 'flex items-center justify-between mb-6' },
-                  h('div', {},
-                    h('h2', { className: 'text-2xl font-bold' }, run.name),
-                    h('p', { className: 'text-sm text-gray-600 mt-1' }, `Test ${currentIndex + 1} of ${testCases.length}`)
-                  ),
-                  h('button', {
-                    onClick: onClose,
-                    className: 'text-gray-400 hover:text-gray-600'
-                  }, h(X, { size: 24 }))
-                ),
-
-                h('div', { className: 'bg-gray-50 rounded-lg p-4 mb-6' },
-                  h('div', { className: 'flex items-start justify-between mb-3' },
-                    h('h3', { className: 'text-lg font-semibold' }, currentTestCase.title),
-                    currentResult?.status && currentResult.status !== 'pending' && h('span', {
-                      className: `px-2 py-1 text-xs rounded ${
-                        currentResult.status === 'pass' ? 'bg-green-100 text-green-700' :
-                        currentResult.status === 'fail' ? 'bg-red-100 text-red-700' :
-                        'bg-yellow-100 text-yellow-700'
-                      }`
-                    }, currentResult.status.toUpperCase())
-                  ),
-                  h('p', { className: 'text-gray-700 mb-4' }, currentTestCase.description),
-                  currentTestCase.test_method && h('div', { className: 'mb-4' },
-                    h('h4', { className: 'font-semibold text-sm mb-2' }, 'Test Method:'),
-                    h('p', { className: 'text-gray-700 text-sm' }, currentTestCase.test_method)
-                  )
-                ),
-
-                h('div', { className: 'mb-6' },
-                  h('label', { className: 'block text-sm font-medium mb-2' }, 'Execution Notes:'),
-                  h('textarea', {
-                    value: notes,
-                    onChange: (e) => setNotes(e.target.value),
-                    className: 'w-full border rounded p-3 h-24',
-                    placeholder: 'Add notes about test execution...'
-                  })
-                ),
-
-                h('div', { className: 'flex gap-3 mb-6' },
-                  h('button', {
-                    onClick: () => handleExecute('pass'),
-                    className: 'flex-1 bg-green-500 text-white px-4 py-3 rounded hover:bg-green-600 font-semibold flex items-center justify-center gap-2'
-                  }, h(CheckCircle, { size: 20 }), 'Pass'),
-                  h('button', {
-                    onClick: () => handleExecute('fail'),
-                    className: 'flex-1 bg-red-500 text-white px-4 py-3 rounded hover:bg-red-600 font-semibold flex items-center justify-center gap-2'
-                  }, h(XCircle, { size: 20 }), 'Fail'),
-                  h('button', {
-                    onClick: () => handleExecute('block'),
-                    className: 'flex-1 bg-yellow-500 text-white px-4 py-3 rounded hover:bg-yellow-600 font-semibold flex items-center justify-center gap-2'
-                  }, h(Clock, { size: 20 }), 'Block')
-                ),
-
-                h('div', { className: 'flex items-center justify-between pt-4 border-t' },
-                  h('button', {
-                    onClick: () => setCurrentIndex(Math.max(0, currentIndex - 1)),
-                    disabled: currentIndex === 0,
-                    className: 'px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50'
-                  }, '← Previous'),
-                  h('button', {
-                    onClick: () => setCurrentIndex(Math.min(testCases.length - 1, currentIndex + 1)),
-                    disabled: currentIndex === testCases.length - 1,
-                    className: 'px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50'
-                  }, 'Next →')
-                )
-              )
-            );
-          };
-
-          // NEW: New Test Run Form
-          const NewTestRunForm = ({ onClose }) => {
-            const [name, setName] = useState('');
-            const [description, setDescription] = useState('');
-            const [selectedTests, setSelectedTests] = useState(new Set());
-
-            const testCases = items.filter(item => item.type === 'test-case');
-
-            const handleSubmit = (e) => {
-              e.preventDefault();
-              if (name && selectedTests.size > 0) {
-                handleCreateTestRun({
-                  name,
-                  description,
-                  testCaseIds: Array.from(selectedTests)
-                });
-              }
-            };
-
-            return h('div', {
-              className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
-              onClick: onClose
-            },
-              h('div', {
-                className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto',
-                onClick: (e) => e.stopPropagation()
-              },
-                h('h2', { className: 'text-2xl font-bold mb-6' }, 'Create New Test Run'),
-                h('form', { onSubmit: handleSubmit },
-                  h('div', { className: 'mb-4' },
-                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Run Name *'),
-                    h('input', {
-                      type: 'text',
-                      value: name,
-                      onChange: (e) => setName(e.target.value),
-                      className: 'w-full border rounded p-2',
-                      required: true
-                    })
-                  ),
-                  h('div', { className: 'mb-4' },
-                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Description'),
-                    h('textarea', {
-                      value: description,
-                      onChange: (e) => setDescription(e.target.value),
-                      className: 'w-full border rounded p-2 h-20'
-                    })
-                  ),
-                  h('div', { className: 'mb-6' },
-                    h('label', { className: 'block text-sm font-medium mb-2' }, 
-                      `Select Test Cases * (${selectedTests.size} selected)`
-                    ),
-                    h('div', { className: 'border rounded max-h-64 overflow-y-auto' },
-                      testCases.length === 0 
-                        ? h('div', { className: 'p-4 text-center text-gray-500' }, 'No test cases available')
-                        : testCases.map(tc =>
-                            h('label', {
-                              key: tc.id,
-                              className: 'flex items-start gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b'
-                            },
-                              h('input', {
-                                type: 'checkbox',
-                                checked: selectedTests.has(tc.id),
-                                onChange: () => {
-                                  const next = new Set(selectedTests);
-                                  if (next.has(tc.id)) next.delete(tc.id);
-                                  else next.add(tc.id);
-                                  setSelectedTests(next);
-                                },
-                                className: 'mt-1'
-                              }),
-                              h('div', {},
-                                h('div', { className: 'font-medium' }, tc.title),
-                                h('div', { className: 'text-sm text-gray-600' }, tc.description)
-                              )
-                            )
-                          )
-                    )
-                  ),
-                  h('div', { className: 'flex gap-3' },
-                    h('button', {
-                      type: 'submit',
-                      disabled: !name || selectedTests.size === 0,
-                      className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:opacity-50'
-                    }, 'Create Test Run'),
-                    h('button', {
-                      type: 'button',
-                      onClick: onClose,
-                      className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
-                    }, 'Cancel')
-                  )
-                )
-              )
-            );
-          };
-
-          // All other existing components remain the same...
           const ProjectForm = ({ onSave, onCancel }) => {
             const [formData, setFormData] = useState({
               name: '',
@@ -1621,8 +1105,8 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                       key: project.id,
                       onClick: () => {
                         setSelectedProject(project);
-                        setSelectedItem(null);
-                        setEditingItem(null);
+                setSelectedItem(null);
+                setEditingItem(null);
                         setShowProjectDropdown(false);
                         setProjectSearchTerm('');
                       },
@@ -1649,6 +1133,45 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                 },
                   h(Plus, { size: 16 }),
                   ' New Project'
+                )
+              )
+            );
+          };
+
+          const AuditLogViewer = ({ itemId }) => {
+            const itemLogs = auditLogs.filter(log => log.item_id === itemId);
+            
+            if (itemLogs.length === 0) return null;
+
+            return h('div', { className: 'border-t pt-4 mt-4' },
+              h('button', {
+                onClick: () => setShowAuditHistory(!showAuditHistory),
+                className: 'flex items-center gap-2 font-semibold text-gray-700 hover:text-gray-900 mb-3'
+              },
+                h(showAuditHistory ? ChevronDown : ChevronRight, { size: 20 }),
+                'Audit History',
+                h('span', { className: 'text-sm font-normal text-gray-500 ml-1' }, `(${itemLogs.length})`)
+              ),
+              showAuditHistory && h('div', { className: 'space-y-2 pl-7' },
+                ...itemLogs.map(log =>
+                  h('div', { key: log.id, className: 'text-sm p-3 bg-gray-50 rounded border-l-2 border-fresh-500' },
+                    h('div', { className: 'flex justify-between items-start mb-1' },
+                      h('span', { className: 'font-medium text-gray-900' }, log.user_name),
+                      h('span', { className: 'text-xs text-gray-500' }, 
+                        new Date(log.timestamp).toLocaleString()
+                      )
+                    ),
+                    h('div', { className: 'text-gray-700' },
+                      log.action === 'create' ? `Created ${log.new_value}` :
+                      log.action === 'approve' ? '✓ Approved this item' :
+                      log.action === 'reject' ? '✗ Rejected this item' :
+                      log.action === 'review_notes' ? `Review notes: ${log.new_value}` :
+                      log.action === 'comment' ? `Added comment: ${log.new_value}` :
+                      log.action === 'update' && log.field_name 
+                        ? `Changed ${log.field_name}: "${log.old_value}" → "${log.new_value}"`
+                        : `${log.action} ${log.field_name || ''}`
+                    )
+                  )
                 )
               )
             );
@@ -1694,12 +1217,43 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             );
           };
 
+          
+          
+          const LevelConfirmModal = ({ suggestedLevel, currentLevel, onAccept, onReject, onClose }) => {
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]' },
+              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
+                h('h3', { className: 'text-xl font-bold mb-4' }, 'Requirement Level Suggestion'),
+                h('p', { className: 'mb-4 text-gray-700' }, 
+                  `The parent requirement is at "${currentLevel}". The derived requirement should typically be at "${suggestedLevel}".`
+                ),
+                h('p', { className: 'mb-6 text-gray-600' }, 
+                  'Which level would you like to use?'
+                ),
+                h('div', { className: 'flex gap-3' },
+                  h('button', {
+                    onClick: onAccept,
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 font-medium'
+                  }, `Use "${suggestedLevel}"`),
+                  h('button', {
+                    onClick: onReject,
+                    className: 'flex-1 bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 font-medium'
+                  }, `Keep "${formData.level || 'system'}"`),
+                  h('button', {
+                    onClick: onClose,
+                    className: 'bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
+                  }, 'Cancel')
+                )
+              )
+            );
+          };
+
           const ApprovalModal = () => {
             if (!selectedItem) return null;
             
             const notesRef = useRef(null);
             const isTestCase = selectedItem.type === 'test-case';
             
+            // Determine labels based on item type
             const modalTitle = isTestCase ? 'Test Execution Result' : 'Review Item';
             const action1 = isTestCase ? 'pass' : 'approve';
             const action2 = isTestCase ? 'fail' : 'reject';
@@ -1709,6 +1263,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
               ? 'Add test execution notes, observations, or issues found...'
               : 'Add any comments about your decision...';
             
+            // Update state from ref on submit
             const handleSubmit = () => {
               const notes = notesRef.current?.value || '';
               handleApproveItem(selectedItem.id, approvalAction, notes);
@@ -1777,8 +1332,89 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             );
           };
 
-          // Additional components would continue here...
-          // For brevity, I'm including the main render return
+          const MyReviewsPanel = () => {
+            if (!user) return null;
+            
+            const itemsNeedingMyReview = items.filter(item => 
+              item.reviewer_email === user.email && 
+              item.status === 'in-review' &&
+              selectedProject && item.project_id === selectedProject.id
+            );
+
+            if (itemsNeedingMyReview.length === 0) return null;
+
+            return h('div', { className: 'bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 rounded' },
+              h('div', { className: 'flex items-center justify-between mb-2' },
+                h('div', { className: 'flex items-center gap-2' },
+                  h('span', { className: 'text-yellow-800 font-semibold' }, '⚠ Items Awaiting Your Review'),
+                  h('span', { className: 'bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-xs font-bold' }, 
+                    itemsNeedingMyReview.length
+                  )
+                ),
+                h('button', {
+                  onClick: () => setShowReviewPanel(!showReviewPanel),
+                  className: 'text-yellow-700 hover:text-yellow-900 p-1'
+                }, showReviewPanel ? h(ChevronDown, { size: 16 }) : h(ChevronRight, { size: 16 }))
+              ),
+              showReviewPanel && h('div', { className: 'space-y-2' },
+                ...itemsNeedingMyReview.slice(0, 3).map(item =>
+                  h('div', { 
+                    key: item.id, 
+                    className: 'flex items-center justify-between bg-white p-2 rounded cursor-pointer hover:bg-gray-50',
+                    onClick: () => { setSelectedItem(item); setShowDetailPanel(true); }
+                  },
+                    h('span', { className: 'text-sm font-medium' }, item.title),
+                    h('span', { className: 'text-xs text-gray-500' }, item.type)
+                  )
+                ),
+                itemsNeedingMyReview.length > 3 && h('p', { className: 'text-xs text-yellow-700 mt-2' }, 
+                  `+${itemsNeedingMyReview.length - 3} more items`
+                )
+              )
+            );
+          };
+
+          const MyTestsPanel = () => {
+            if (!user) return null;
+            
+            const testsNeedingMyExecution = items.filter(item => 
+              item.tester_email === user.email && 
+              item.status === 'ready-for-test' &&
+              selectedProject && item.project_id === selectedProject.id
+            );
+
+            if (testsNeedingMyExecution.length === 0) return null;
+
+            return h('div', { className: 'bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded' },
+              h('div', { className: 'flex items-center justify-between mb-2' },
+                h('div', { className: 'flex items-center gap-2' },
+                  h('span', { className: 'text-blue-800 font-semibold' }, '🧪 Tests Awaiting Execution'),
+                  h('span', { className: 'bg-blue-200 text-blue-800 px-2 py-1 rounded-full text-xs font-bold' }, 
+                    testsNeedingMyExecution.length
+                  )
+                ),
+                h('button', {
+                  onClick: () => setShowTestPanel(!showTestPanel),
+                  className: 'text-blue-700 hover:text-blue-900 p-1'
+                }, showTestPanel ? h(ChevronDown, { size: 16 }) : h(ChevronRight, { size: 16 }))
+              ),
+              showTestPanel && h('div', { className: 'space-y-2' },
+                ...testsNeedingMyExecution.slice(0, 3).map(item =>
+                  h('div', { 
+                    key: item.id, 
+                    className: 'flex items-center justify-between bg-white p-2 rounded cursor-pointer hover:bg-gray-50',
+                    onClick: () => { setSelectedItem(item); setShowDetailPanel(true); }
+                  },
+                    h('span', { className: 'text-sm font-medium' }, item.title),
+                    h('span', { className: 'text-xs text-gray-500' }, item.type)
+                  )
+                ),
+                testsNeedingMyExecution.length > 3 && h('p', { className: 'text-xs text-blue-700 mt-2' }, 
+                  `+${testsNeedingMyExecution.length - 3} more items`
+                )
+              )
+            );
+          };
 
           const filteredItems = useMemo(() => {
             return items.filter(item => {
@@ -1792,6 +1428,594 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
             });
           }, [items, selectedProject, filterType, filterStatus, searchTerm]);
 
+          const renderTreeItem = (item, level = 0) => {
+            const hasChildren = item.children && item.children.length > 0;
+            const isExpanded = expandedItems.has(item.id);
+            const isSelected = selectedItem?.id === item.id;
+            
+            if (!filteredItems.find(i => i.id === item.id)) return null;
+
+            return h('div', { key: item.id },
+              h('div', {
+                className: `flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 border-b ${isSelected ? 'bg-fresh-50 border-l-4 border-fresh-500' : ''} ${dropTarget === item.id ? 'bg-blue-100' : ''} ${draggedItem?.id === item.id ? 'opacity-50' : ''}`,
+                // Indent requirements one level deeper than epics to show they nest conceptually within the organizational structure
+                style: { paddingLeft: `${item.type === 'requirement' ? ((requirementLevels.indexOf(item.level || 'system') + 1) * 20 + 8) : (level * 20 + 8)}px` },
+                onClick: () => { setSelectedItem(item); setShowDetailPanel(true); },
+                onDragOver: (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDropTarget(item.id);
+                },
+                onDragLeave: (e) => {
+                  e.stopPropagation();
+                  if (e.currentTarget === e.target) setDropTarget(null);
+                },
+                onDrop: (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (draggedItem && draggedItem.id !== item.id) {
+                    handleUpdateParent(draggedItem.id, item.id);
+                  }
+                  setDraggedItem(null);
+                  setDropTarget(null);
+                }
+              },
+                h('div', {
+                  draggable: true,
+                  onDragStart: (e) => {
+                    e.stopPropagation();
+                    setDraggedItem(item);
+                  },
+                  onDragEnd: () => {
+                    setDraggedItem(null);
+                    setDropTarget(null);
+                  },
+                  onClick: (e) => e.stopPropagation(),
+                  className: 'cursor-move text-gray-400 hover:text-gray-600 flex items-center'
+                }, h(GripVertical, { size: 16 })),
+                hasChildren && h('button', { 
+                  onClick: (e) => { e.stopPropagation(); toggleExpand(item.id); },
+                  className: 'p-0'
+                }, isExpanded ? h(ChevronDown, { size: 16 }) : h(ChevronRight, { size: 16 })),
+                !hasChildren && h('div', { className: 'w-4' }),
+                h('span', {
+                  className: `px-2 py-1 text-xs rounded ${
+                    item.type === 'epic' ? 'bg-purple-100 text-purple-800' :
+                    item.type === 'requirement' ? 'bg-blue-100 text-blue-800' :
+                    item.type === 'test-case' ? 'bg-green-100 text-green-800' :
+                    'bg-red-100 text-red-800'
+                  }`
+                }, item.type === 'requirement' ? `${item.type} (${item.level || 'system'})` : item.type),
+                h('div', { className: 'flex-1' },
+                      h('div', { className: 'font-medium' }, item.title),
+                      !showDetailPanel && item.description && h('div', { className: 'text-sm text-gray-600 mt-1' }, item.description)
+                    ),
+                // Hide status for epics since they're organizational containers
+                item.type !== 'epic' && h('span', {
+                  className: `px-2 py-1 text-xs rounded ${
+                    item.status === 'approved' || item.status === 'passed' ? 'bg-green-100 text-green-800' :
+                    item.status === 'in-review' || item.status === 'ready-for-test' ? 'bg-yellow-100 text-yellow-800' :
+                    item.status === 'rejected' || item.status === 'failed' ? 'bg-red-100 text-red-800' :
+                    item.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+                    'bg-blue-100 text-blue-800'
+                  }`
+                }, item.status)
+              ),
+              isExpanded && hasChildren && h('div', {},
+                item.children.map(childId => {
+                  const child = items.find(i => i.id === childId);
+                  return child ? renderTreeItem(child, level + 1) : null;
+                })
+              )
+            );
+          };
+
+          const ItemForm = ({ item, onSave, onCancel }) => {
+            const [formData, setFormData] = useState(item || {
+              type: 'requirement',
+              title: '',
+              description: '',
+              rationale: '',
+              test_method: '',
+              status: 'draft',
+              priority: 'medium',
+              owner: '',
+              level: 'system',
+              parentId: selectedItem?.id || null,
+            });
+
+            const [selectedRelationships, setSelectedRelationships] = useState([]);
+            const [suggestedLevel, setSuggestedLevel] = useState(null);
+            const [showLevelConfirm, setShowLevelConfirm] = useState(false);
+
+            const getFieldsForType = (type) => {
+              switch(type) {
+                case 'epic':
+                  return ['title', 'description'];
+                case 'requirement':
+                  return ['title', 'description', 'rationale', 'status', 'priority', 'owner', 'level'];
+                case 'test-case':
+                  return ['title', 'description', 'test_method', 'status', 'owner'];
+                case 'defect':
+                  return ['title', 'description', 'status', 'priority', 'owner'];
+                default:
+                  return ['title', 'description'];
+              }
+            };
+
+            const fields = getFieldsForType(formData.type);
+            const availableStatuses = statuses[formData.type] || statuses.requirement;
+
+            // Update status when type changes
+            useEffect(() => {
+              if (!availableStatuses.includes(formData.status)) {
+                setFormData(prev => ({ ...prev, status: availableStatuses[0] }));
+              }
+            }, [formData.type]);
+
+            // Get list of all users who have interacted with the system (for reviewer/tester assignment)
+            const allUsers = useMemo(() => {
+              const userEmails = new Set();
+              comments.forEach(c => c.author_email && userEmails.add(c.author_email));
+              items.forEach(i => {
+                if (i.owner) userEmails.add(i.owner);
+                if (i.reviewer_email) userEmails.add(i.reviewer_email);
+                if (i.tester_email) userEmails.add(i.tester_email);
+              });
+              if (user) userEmails.add(user.email);
+              return Array.from(userEmails);
+            }, [comments, items, user]);
+
+            
+            const getNextLevel = (currentLevel) => {
+              const idx = requirementLevels.indexOf(currentLevel);
+              return idx >= 0 && idx < requirementLevels.length - 1 
+                ? requirementLevels[idx + 1] 
+                : currentLevel;
+            };
+
+            // Watch for derives-from relationships and suggest level
+            useEffect(() => {
+              if (formData.type !== 'requirement') return;
+              
+              const derivesFromRel = selectedRelationships.find(r => r.type === 'derives-from');
+              if (derivesFromRel) {
+                const parentItem = items.find(i => i.id === derivesFromRel.to);
+                if (parentItem && parentItem.level) {
+                  const nextLevel = getNextLevel(parentItem.level);
+                  if (nextLevel !== formData.level) {
+                    setSuggestedLevel(nextLevel);
+                    setShowLevelConfirm(true);
+                  }
+                }
+              }
+            }, [selectedRelationships, formData.type]);
+
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto' },
+                h('h3', { className: 'text-xl font-bold mb-4' }, item ? 'Edit Item' : 'New Item'),
+                h('div', { className: 'space-y-4' },
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Type'),
+                    h('select', {
+                      value: formData.type,
+                      onChange: (e) => setFormData({ ...formData, type: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2',
+                      disabled: !!item
+                    }, itemTypes.map(type => h('option', { key: type, value: type }, type)))
+                  ),
+                  fields.includes('title') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Title'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.title,
+                      onChange: (e) => setFormData({ ...formData, title: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  fields.includes('description') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Description'),
+                    h('textarea', {
+                      value: formData.description,
+                      onChange: (e) => setFormData({ ...formData, description: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2 h-24'
+                    })
+                  ),
+                  fields.includes('rationale') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Rationale'),
+                    h('textarea', {
+                      value: formData.rationale || '',
+                      onChange: (e) => setFormData({ ...formData, rationale: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2 h-20'
+                    })
+                  ),
+                  fields.includes('test_method') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Test Method'),
+                    h('textarea', {
+                      value: formData.test_method || '',
+                      onChange: (e) => setFormData({ ...formData, test_method: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2 h-20'
+                    })
+                  ),
+                  h('div', { className: 'grid grid-cols-2 gap-4' },
+                    fields.includes('status') && h('div', {},
+                      h('label', { className: 'block text-sm font-medium mb-1' }, 'Status'),
+                      h('select', {
+                        value: formData.status,
+                        onChange: (e) => setFormData({ ...formData, status: e.target.value }),
+                        className: 'w-full border rounded px-3 py-2'
+                      }, availableStatuses.map(status => h('option', { key: status, value: status }, status)))
+                    ),
+                    fields.includes('priority') && h('div', {},
+                      h('label', { className: 'block text-sm font-medium mb-1' }, 'Priority'),
+                      h('select', {
+                        value: formData.priority,
+                        onChange: (e) => setFormData({ ...formData, priority: e.target.value }),
+                        className: 'w-full border rounded px-3 py-2'
+                      }, priorities.map(priority => h('option', { key: priority, value: priority }, priority)))
+                    )
+                  ),
+                  fields.includes('owner') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Owner'),
+                    h('input', {
+                      type: 'text',
+                      value: formData.owner,
+                      onChange: (e) => setFormData({ ...formData, owner: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  fields.includes('level') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Requirement Level'),
+                    h('select', {
+                      value: formData.level || 'system',
+                      onChange: (e) => setFormData({ ...formData, level: e.target.value }),
+                      className: 'w-full border rounded px-3 py-2'
+                    }, requirementLevels.map(lvl => h('option', { key: lvl, value: lvl }, lvl)))
+                  ),
+                  (formData.type === 'requirement' || formData.type === 'epic' || formData.type === 'test-case') && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 
+                      formData.type === 'test-case' ? 'Assign Tester (Optional)' : 'Assign Reviewer (Optional)'
+                    ),
+                    h('select', {
+                      value: formData.type === 'test-case' ? (formData.tester_email || '') : (formData.reviewer_email || ''),
+                      onChange: (e) => {
+                        if (formData.type === 'test-case') {
+                          setFormData({ ...formData, tester_email: e.target.value });
+                        } else {
+                          setFormData({ ...formData, reviewer_email: e.target.value });
+                        }
+                      },
+                      className: 'w-full border rounded px-3 py-2'
+                    },
+                      h('option', { value: '' }, formData.type === 'test-case' ? 'No tester assigned' : 'No reviewer assigned'),
+                      ...allUsers.map(email => h('option', { key: email, value: email }, email))
+                    )
+                  ),
+                  !item && h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Add Relationships (Optional)'),
+                    h('div', { className: 'border rounded p-3 space-y-2' },
+                      ...selectedRelationships.map((rel, idx) =>
+                        h('div', { key: idx, className: 'flex gap-2 items-center bg-gray-50 p-2 rounded' },
+                          h('select', {
+                            value: rel.type,
+                            onChange: (e) => {
+                              const updated = [...selectedRelationships];
+                              updated[idx].type = e.target.value;
+                              setSelectedRelationships(updated);
+                            },
+                            className: 'border rounded px-2 py-1 text-sm'
+                          }, relationshipTypes.map(rt => h('option', { key: rt, value: rt }, rt))),
+                          h('select', {
+                            value: rel.to,
+                            onChange: (e) => {
+                              const updated = [...selectedRelationships];
+                              updated[idx].to = Number(e.target.value);
+                              setSelectedRelationships(updated);
+                            },
+                            className: 'flex-1 border rounded px-2 py-1 text-sm'
+                          },
+                            h('option', { value: '' }, 'Select item...'),
+                            items.map(i => h('option', { key: i.id, value: i.id }, `[${i.type}] ${i.title}`))
+                          ),
+                          h('button', {
+                            onClick: () => setSelectedRelationships(selectedRelationships.filter((_, i) => i !== idx)),
+                            className: 'text-red-600 hover:bg-red-50 p-1 rounded'
+                          }, h(X, { size: 16 }))
+                        )
+                      ),
+                      h('button', {
+                        onClick: () => setSelectedRelationships([...selectedRelationships, { type: 'relates-to', to: '' }]),
+                        className: 'text-fresh-600 hover:bg-fresh-50 px-3 py-1 rounded text-sm flex items-center gap-1'
+                      }, h(Plus, { size: 14 }), ' Add Relationship')
+                    )
+                  )
+                ),
+                h('div', { className: 'flex gap-2 mt-6' },
+                  h('button', {
+                    onClick: async () => {
+                      if (item) {
+                        onSave(item.id, formData);
+                      } else {
+                        await onSave({ ...formData, relationships: selectedRelationships });
+                        // Add relationships after item is created
+                        if (selectedRelationships.length > 0) {
+                          // We'd need the new item ID here - will handle in onSave
+                        }
+                      }
+                    },
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
+                  }, h(Save, { size: 16 }), ' Save'),
+                  h('button', {
+                    onClick: onCancel,
+                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 flex items-center justify-center gap-2'
+                  }, h(X, { size: 16 }), ' Cancel')
+                )
+              ),
+              showLevelConfirm && h(LevelConfirmModal, {
+                suggestedLevel,
+                currentLevel: items.find(i => selectedRelationships.find(r => r.type === 'derives-from' && r.to === i.id))?.level || 'system',
+                onAccept: () => {
+                  setFormData({ ...formData, level: suggestedLevel });
+                  setShowLevelConfirm(false);
+                },
+                onReject: () => {
+                  setShowLevelConfirm(false);
+                },
+                onClose: () => {
+                  setShowLevelConfirm(false);
+                },
+                formData
+              })
+            );
+          };
+
+          const RelationshipForm = () => {
+            const [from, setFrom] = useState(selectedItem?.id || '');
+            const [to, setTo] = useState('');
+            const [type, setType] = useState('tests');
+
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-md' },
+                h('h3', { className: 'text-xl font-bold mb-4' }, 'Add Relationship'),
+                h('div', { className: 'space-y-4' },
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'From Item'),
+                    h('select', {
+                      value: from,
+                      onChange: (e) => setFrom(Number(e.target.value)),
+                      className: 'w-full border rounded px-3 py-2'
+                    }, 
+                      h('option', { value: '' }, 'Select item...'),
+                      items.map(item => h('option', { key: item.id, value: item.id }, `[${item.type}] ${item.title}`))
+                    )
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'Relationship Type'),
+                    h('select', {
+                      value: type,
+                      onChange: (e) => setType(e.target.value),
+                      className: 'w-full border rounded px-3 py-2'
+                    }, relationshipTypes.map(rt => h('option', { key: rt, value: rt }, rt)))
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-1' }, 'To Item'),
+                    h('select', {
+                      value: to,
+                      onChange: (e) => setTo(Number(e.target.value)),
+                      className: 'w-full border rounded px-3 py-2'
+                    },
+                      h('option', { value: '' }, 'Select item...'),
+                      items.filter(i => i.id !== from).map(item => h('option', { key: item.id, value: item.id }, `[${item.type}] ${item.title}`))
+                    )
+                  )
+                ),
+                h('div', { className: 'flex gap-2 mt-6' },
+                  h('button', {
+                    onClick: () => from && to && handleAddRelationship(from, to, type),
+                    disabled: !from || !to,
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:bg-gray-300'
+                  }, 'Add Relationship'),
+                  h('button', {
+                    onClick: () => setShowRelationshipForm(false),
+                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
+                  }, 'Cancel')
+                )
+              )
+            );
+          };
+
+          const ImportCSVModal = () => {
+            return h('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+              h('div', { className: 'bg-white rounded-lg p-6 w-full max-w-lg' },
+                h('h3', { className: 'text-xl font-bold mb-4' }, 'Import Requirements from CSV'),
+                h('div', { className: 'mb-6' },
+                  h('div', { className: 'bg-blue-50 border-l-4 border-blue-500 p-4 mb-4' },
+                    h('p', { className: 'text-sm text-blue-800 mb-2' }, '📋 Import Instructions:'),
+                    h('ul', { className: 'text-sm text-blue-700 space-y-1 ml-4' },
+                      h('li', {}, '• Download the template to see the required format'),
+                      h('li', {}, '• Fill in your requirements data in the CSV'),
+                      h('li', {}, '• Required fields: type, title'),
+                      h('li', {}, '• Items will be imported to the current project'),
+                      h('li', {}, '• Valid types: epic, requirement, test-case, defect')
+                    )
+                  ),
+                  h('div', { className: 'mb-4' },
+                    h('button', {
+                      onClick: downloadCSVTemplate,
+                      className: 'w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2'
+                    }, '📥 Download CSV Template')
+                  ),
+                  h('div', {},
+                    h('label', { className: 'block text-sm font-medium mb-2' }, 'Select CSV File to Import'),
+                    h('input', {
+                      type: 'file',
+                      accept: '.csv',
+                      onChange: (e) => setImportFile(e.target.files[0]),
+                      className: 'w-full border rounded px-3 py-2'
+                    })
+                  ),
+                  importFile && h('p', { className: 'text-sm text-gray-600 mt-2' }, 
+                    `Selected: ${importFile.name}`
+                  )
+                ),
+                h('div', { className: 'flex gap-2' },
+                  h('button', {
+                    onClick: () => importFile && handleImportCSV(importFile),
+                    disabled: !importFile,
+                    className: 'flex-1 bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 disabled:bg-gray-300'
+                  }, 'Import CSV'),
+                  h('button', {
+                    onClick: () => {
+                      setShowImportModal(false);
+                      setImportFile(null);
+                    },
+                    className: 'flex-1 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300'
+                  }, 'Cancel')
+                )
+              )
+            );
+          };
+
+          const RelationshipGraph = ({ item }) => {
+            if (!item) return null;
+
+            const outgoing = getItemRelationships(item.id).outgoing;
+            const incoming = getItemRelationships(item.id).incoming;
+            
+            // Build graph data - don't override the type property
+            const graphItems = [{ ...item, level: 0, isCenter: true }];
+            
+            // Add incoming (items that point TO this item) - these go below (reversed)
+            incoming.forEach((rel, idx) => {
+              const sourceItem = items.find(i => i.id === rel.from_id);
+              if (sourceItem) {
+                graphItems.push({ 
+                  ...sourceItem, 
+                  level: 1, 
+                  relType: rel.type,
+                  index: idx 
+                });
+              }
+            });
+            
+            // Add outgoing (items this item points TO) - these go above (reversed)
+            outgoing.forEach((rel, idx) => {
+              const targetItem = items.find(i => i.id === rel.to_id);
+              if (targetItem) {
+                graphItems.push({ 
+                  ...targetItem, 
+                  level: -1, 
+                  relType: rel.type,
+                  index: idx 
+                });
+              }
+            });
+
+            const width = 800;
+            const height = 600;
+            const centerY = height / 2;
+            const centerX = width / 2;
+            const levelSpacing = 200;
+            const nodeWidth = 180;
+            const nodeHeight = 60;
+
+            return h('div', { className: 'bg-white p-4 rounded-lg border' },
+              h('svg', { width, height, className: 'mx-auto' },
+                // Draw connections
+                ...graphItems.filter(gi => gi.level !== 0).map(gi => {
+                  const itemsAtLevel = graphItems.filter(g => g.level === gi.level).length;
+                  const spacing = Math.min(250, width / (itemsAtLevel + 1));
+                  const x = centerX + (gi.index - (itemsAtLevel - 1) / 2) * spacing;
+                  const y = centerY + gi.level * levelSpacing;
+                  
+                  return h('g', { key: `conn-${gi.id}` },
+                    h('line', {
+                      x1: centerX,
+                      y1: centerY,
+                      x2: x,
+                      y2: y,
+                      stroke: gi.level < 0 ? '#16a34a' : '#3b82f6',
+                      strokeWidth: 2,
+                      markerEnd: 'url(#arrowhead)'
+                    }),
+                    h('text', {
+                      x: (centerX + x) / 2,
+                      y: (centerY + y) / 2 - 5,
+                      fontSize: 11,
+                      fill: '#666',
+                      textAnchor: 'middle'
+                    }, gi.relType)
+                  );
+                }),
+                
+                // Arrow marker definition
+                h('defs', {},
+                  h('marker', {
+                    id: 'arrowhead',
+                    markerWidth: 10,
+                    markerHeight: 7,
+                    refX: 9,
+                    refY: 3.5,
+                    orient: 'auto'
+                  },
+                    h('polygon', {
+                      points: '0 0, 10 3.5, 0 7',
+                      fill: '#666'
+                    })
+                  )
+                ),
+                
+                // Draw nodes
+                ...graphItems.map(gi => {
+                  const itemsAtLevel = graphItems.filter(g => g.level === gi.level).length;
+                  const spacing = Math.min(250, width / (itemsAtLevel + 1));
+                  const x = gi.level === 0 ? centerX : centerX + (gi.index - (itemsAtLevel - 1) / 2) * spacing;
+                  const y = centerY + gi.level * levelSpacing;
+                  
+                  const bgColor = gi.isCenter ? '#22c55e' :
+                                  gi.type === 'epic' ? '#a855f7' :
+                                  gi.type === 'requirement' ? '#3b82f6' :
+                                  gi.type === 'test-case' ? '#10b981' : '#ef4444';
+                  
+                  return h('g', { key: `node-${gi.id}` },
+                    h('rect', {
+                      x: x - nodeWidth / 2,
+                      y: y - nodeHeight / 2,
+                      width: nodeWidth,
+                      height: nodeHeight,
+                      fill: bgColor,
+                      rx: 8,
+                      stroke: gi.isCenter ? '#15803d' : '#fff',
+                      strokeWidth: gi.isCenter ? 3 : 1
+                    }),
+                    h('text', {
+                      x,
+                      y: y - 8,
+                      fontSize: 11,
+                      fill: 'white',
+                      textAnchor: 'middle',
+                      fontWeight: gi.isCenter ? 'bold' : 'normal'
+                    }, gi.type),
+                    h('text', {
+                      x,
+                      y: y + 8,
+                      fontSize: 12,
+                      fill: 'white',
+                      textAnchor: 'middle',
+                      fontWeight: gi.isCenter ? 'bold' : 'normal'
+                    }, gi.title.length > 20 ? gi.title.substring(0, 20) + '...' : gi.title)
+                  );
+                })
+              ),
+              h('div', { className: 'mt-4 text-sm text-gray-600 text-center' },
+                h('div', {}, '↑ Items that link TO this requirement'),
+                h('div', { className: 'mt-1' }, '↓ Items this requirement links TO')
+              )
+            );
+          };
+
+          const rootItems = items.filter(item => !item.parent_id);
+
           if (!isConfigured) {
             return h('div', { className: 'h-screen flex items-center justify-center bg-gray-50' },
               h('div', { className: 'bg-white p-8 rounded-lg shadow-lg max-w-2xl w-full' },
@@ -1801,7 +2025,7 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                   className: 'h-12 mx-auto mb-6'
                 }),
                 h('h1', { className: 'text-3xl font-bold mb-6 text-center' }, 'Requirements Management System'),
-                h('p', { className: 'text-gray-600 mb-6' }, 'Connect to your Supabase database to get started.'),
+                h('p', { className: 'text-gray-600 mb-6' }, 'Connect to your Supabase database to get started. You\'ll need your project URL and anon key.'),
                 h('div', { className: 'space-y-4 mb-6' },
                   h('div', {},
                     h('label', { className: 'block text-sm font-medium mb-2' }, 'Supabase Project URL'),
@@ -1834,13 +2058,18 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                     onClick: setupDatabase,
                     className: 'w-full bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300'
                   }, 'Show Database Setup Instructions')
+                ),
+                h('div', { className: 'mt-6 p-4 bg-fresh-50 rounded' },
+                  h('p', { className: 'text-sm text-fresh-900' },
+                    h('strong', {}, 'First time setup: '),
+                    'Click "Show Database Setup Instructions" to get the SQL commands you need to run in your Supabase SQL editor to create the required tables.'
+                  )
                 )
               )
             );
           }
 
           return h('div', { className: 'h-screen flex flex-col bg-gray-50' },
-            // Header
             h('header', { className: 'bg-fresh-600 text-white p-4 shadow flex justify-between items-center' },
               h('div', { className: 'flex items-center gap-4' },
                 h('img', { 
@@ -1860,14 +2089,13 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                   }),
                   h('span', { className: 'text-sm' }, user.user_metadata?.full_name || user.email)
                 ),
-                // NEW: Help button
                 h('a', {
                   href: './quick-start-guide.html',
                   target: '_blank',
                   rel: 'noopener noreferrer',
                   className: 'px-4 py-2 bg-fresh-500 rounded hover:bg-fresh-700 flex items-center gap-2 text-white no-underline',
                   title: 'Open Quick Start Guide'
-                }, h(HelpCircle, { size: 18 }), ' Help'),
+                }, '❓ Help'),
                 h('button', {
                   onClick: () => setShowReports(!showReports),
                   className: `px-4 py-2 rounded flex items-center gap-2 ${showReports ? 'bg-fresh-700' : 'bg-fresh-500 hover:bg-fresh-700'}`
@@ -1882,7 +2110,6 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
                 }, 'Sign Out')
               )
             ),
-            // Main content area
             loading ? h('div', { className: 'flex-1 flex items-center justify-center' },
               h('div', { className: 'text-center' },
                 h('div', { className: 'animate-spin rounded-full h-12 w-12 border-b-2 border-fresh-600 mx-auto mb-4' }),
@@ -1892,84 +2119,572 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
               h('div', { className: 'text-center' },
                 h(Filter, { size: 64, className: 'mx-auto mb-4 text-gray-300' }),
                 h('h2', { className: 'text-2xl font-bold text-gray-700 mb-2' }, 'No Project Selected'),
-                h('p', { className: 'text-gray-500 mb-4' }, projects.length === 0 ? 'Create your first project to get started' : 'Select a project from the dropdown above')
+                h('p', { className: 'text-gray-500 mb-4' }, projects.length === 0 ? 'Create your first project to get started' : 'Select a project from the dropdown above'),
+                projects.length === 0 && h('button', {
+                  onClick: () => setShowProjectForm(true),
+                  className: 'bg-fresh-600 text-white px-6 py-3 rounded-lg hover:bg-fresh-700 flex items-center gap-2 mx-auto'
+                }, h(Plus, { size: 20 }), ' Create First Project')
               )
-            ) : h('div', { className: 'flex-1 flex overflow-hidden' },
-              // Sidebar with folder tree and view toggle
-              h('div', { className: 'w-80 bg-white border-r flex flex-col' },
-                h('div', { className: 'p-4 border-b' },
-                  // NEW: View mode toggle
-                  h('div', { className: 'flex gap-2 mb-4' },
-                    h('button', {
-                      onClick: () => setViewMode('tree'),
-                      className: `flex-1 px-3 py-2 rounded text-sm font-medium ${viewMode === 'tree' ? 'bg-fresh-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`
-                    }, h(List, { size: 16, className: 'inline mr-1' }), 'Items'),
-                    h('button', {
-                      onClick: () => setViewMode('test-runs'),
-                      className: `flex-1 px-3 py-2 rounded text-sm font-medium ${viewMode === 'test-runs' ? 'bg-fresh-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`
-                    }, h(Play, { size: 16, className: 'inline mr-1' }), 'Test Runs')
+            ) : showReports ? h('div', { className: 'p-6 overflow-y-auto h-full bg-gray-50' },
+              h('div', { className: 'max-w-7xl mx-auto' },
+                h('h2', { className: 'text-3xl font-bold mb-6' }, 'Project Reports & Analytics'),
+                h('div', { className: 'grid grid-cols-4 gap-4 mb-6' },
+                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
+                    h('div', { className: 'flex items-center justify-between' },
+                      h('div', {},
+                        h('p', { className: 'text-sm text-gray-500' }, 'Total Items'),
+                        h('p', { className: 'text-3xl font-bold' }, reportData.totalItems)
+                      ),
+                      h(BarChart3, { size: 32, className: 'text-fresh-500' })
+                    )
                   ),
-                  h('div', { className: 'relative mb-3' },
-                    h(Search, { size: 18, className: 'absolute left-3 top-2.5 text-gray-400' }),
-                    h('input', {
-                      type: 'text',
-                      value: searchTerm,
-                      onChange: (e) => setSearchTerm(e.target.value),
-                      placeholder: 'Search...',
-                      className: 'w-full pl-10 pr-3 py-2 border rounded'
-                    })
+                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
+                    h('div', { className: 'flex items-center justify-between' },
+                      h('div', {},
+                        h('p', { className: 'text-sm text-gray-500' }, 'Test Coverage'),
+                        h('p', { className: 'text-3xl font-bold' }, reportData.testCoverage + '%')
+                      ),
+                      h(PieChart, { size: 32, className: 'text-fresh-500' })
+                    )
                   ),
-                  viewMode === 'tree' && h('div', { className: 'flex gap-2' },
-                    ['all', 'epic', 'requirement', 'test-case', 'defect'].map(type =>
-                      h('button', {
-                        key: type,
-                        onClick: () => setFilterType(type),
-                        className: `px-2 py-1 rounded text-xs ${filterType === type ? 'bg-fresh-100 text-fresh-700 font-medium' : 'bg-gray-100 hover:bg-gray-200'}`
-                      }, type === 'all' ? 'All' : type.split('-')[0])
+                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
+                    h('div', { className: 'flex items-center justify-between' },
+                      h('div', {},
+                        h('p', { className: 'text-sm text-gray-500' }, 'Traceability'),
+                        h('p', { className: 'text-3xl font-bold' }, reportData.traceabilityScore + '%')
+                      ),
+                      h(GitBranch, { size: 32, className: 'text-fresh-500' })
+                    )
+                  ),
+                  h('div', { className: 'bg-white p-4 rounded-lg shadow' },
+                    h('div', { className: 'flex items-center justify-between' },
+                      h('div', {},
+                        h('p', { className: 'text-sm text-gray-500' }, 'Relationships'),
+                        h('p', { className: 'text-3xl font-bold' }, reportData.totalRelationships)
+                      ),
+                      h(Link2, { size: 32, className: 'text-fresh-500' })
                     )
                   )
                 ),
-                h('div', { className: 'flex-1 overflow-y-auto p-4' },
-                  viewMode === 'tree' ? h(FolderTree) : h('div', { className: 'space-y-3' },
-                    testRuns.filter(run => !selectedProject || run.project_id === selectedProject.id).length === 0 
-                      ? h('div', { className: 'text-center py-8 text-gray-500' },
-                          h('p', {}, 'No test runs yet')
+                h('div', { className: 'grid grid-cols-2 gap-6 mb-6' },
+                  h('div', { className: 'bg-white p-6 rounded-lg shadow' },
+                    h('h3', { className: 'text-xl font-semibold mb-4' }, 'Status Distribution'),
+                    h('div', { className: 'space-y-3' },
+                      Object.entries(reportData.statusDist).map(([status, count]) =>
+                        h('div', { key: status },
+                          h('div', { className: 'flex justify-between mb-1' },
+                            h('span', { className: 'capitalize' }, status),
+                            h('span', { className: 'font-semibold' }, count)
+                          ),
+                          h('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
+                            h('div', {
+                              className: `h-2 rounded-full ${
+                                status === 'approved' ? 'bg-green-500' :
+                                status === 'in-review' ? 'bg-yellow-500' :
+                                status === 'rejected' ? 'bg-red-500' : 'bg-gray-400'
+                              }`,
+                              style: { width: `${reportData.totalItems > 0 ? (count / reportData.totalItems * 100) : 0}%` }
+                            })
+                          )
                         )
-                      : testRuns.filter(run => !selectedProject || run.project_id === selectedProject.id).map(run =>
-                          h(TestRunCard, { key: run.id, run })
-                        )
-                  )
-                ),
-                h('div', { className: 'p-4 border-t' },
-                  viewMode === 'tree' 
-                    ? h('button', {
-                        onClick: () => setShowNewItemForm(true),
-                        className: 'w-full bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
-                      }, h(Plus, { size: 18 }), 'New Item')
-                    : h('button', {
-                        onClick: () => setShowNewRunForm(true),
-                        className: 'w-full bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-2'
-                      }, h(Play, { size: 18 }), 'New Test Run')
-                )
-              ),
-              // Main detail panel - keep existing code here...
-              h('div', { className: 'flex-1 bg-gray-100 p-6 overflow-y-auto' },
-                selectedItem && showDetailPanel 
-                  ? h('div', { className: 'bg-white rounded-lg shadow-lg p-6 max-w-4xl mx-auto' },
-                      h('h2', { className: 'text-2xl font-bold mb-4' }, selectedItem.title),
-                      h('p', { className: 'text-gray-700' }, selectedItem.description || 'No description')
-                    )
-                  : h('div', { className: 'flex items-center justify-center h-full' },
-                      h('div', { className: 'text-center text-gray-400' },
-                        h(Filter, { size: 64, className: 'mx-auto mb-4 opacity-50' }),
-                        h('p', { className: 'text-xl' }, 'Select an item to view details')
                       )
                     )
+                  ),
+                  h('div', { className: 'bg-white p-6 rounded-lg shadow' },
+                    h('h3', { className: 'text-xl font-semibold mb-4' }, 'Item Type Distribution'),
+                    h('div', { className: 'space-y-3' },
+                      Object.entries(reportData.typeDist).map(([type, count]) =>
+                        h('div', { key: type },
+                          h('div', { className: 'flex justify-between mb-1' },
+                            h('span', { className: 'capitalize' }, type),
+                            h('span', { className: 'font-semibold' }, count)
+                          ),
+                          h('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
+                            h('div', {
+                              className: `h-2 rounded-full ${
+                                type === 'epic' ? 'bg-purple-500' :
+                                type === 'requirement' ? 'bg-blue-500' :
+                                type === 'test-case' ? 'bg-green-500' : 'bg-red-500'
+                              }`,
+                              style: { width: `${reportData.totalItems > 0 ? (count / reportData.totalItems * 100) : 0}%` }
+                            })
+                          )
+                        )
+                      )
+                    )
+                  )
+                ),
+                h('div', { className: 'bg-white p-6 rounded-lg shadow mb-6' },
+                  h('h3', { className: 'text-xl font-semibold mb-4' }, 'Priority Distribution'),
+                  h('div', { className: 'grid grid-cols-4 gap-4' },
+                    Object.entries(reportData.priorityDist).map(([priority, count]) =>
+                      h('div', { key: priority, className: 'text-center' },
+                        h('div', {
+                          className: `text-4xl font-bold mb-2 ${
+                            priority === 'critical' ? 'text-red-600' :
+                            priority === 'high' ? 'text-orange-600' :
+                            priority === 'medium' ? 'text-yellow-600' : 'text-gray-600'
+                          }`
+                        }, count),
+                        h('div', { className: 'text-sm text-gray-500 capitalize' }, priority)
+                      )
+                    )
+                  )
+                ),
+                h('div', { className: 'bg-white p-6 rounded-lg shadow mb-6' },
+                  h('h3', { className: 'text-xl font-semibold mb-4' }, 'Status by Item Type'),
+                  h('div', { className: 'overflow-x-auto' },
+                    h('table', { className: 'w-full' },
+                      h('thead', {},
+                        h('tr', { className: 'border-b' },
+                          h('th', { className: 'text-left p-2' }, 'Type'),
+                          ...reportData.allStatuses.map(status => h('th', { key: status, className: 'text-center p-2 capitalize' }, status)),
+                          h('th', { className: 'text-center p-2' }, 'Total')
+                        )
+                      ),
+                      h('tbody', {},
+                        itemTypes.map(type =>
+                          h('tr', { key: type, className: 'border-b hover:bg-gray-50' },
+                            h('td', { className: 'p-2 capitalize font-medium' }, type),
+                            ...reportData.allStatuses.map(status => 
+                              h('td', { key: status, className: 'text-center p-2' }, reportData.statusByType[type][status] || 0)
+                            ),
+                            h('td', { className: 'text-center p-2 font-semibold' },
+                              Object.values(reportData.statusByType[type]).reduce((a, b) => a + b, 0)
+                            )
+                          )
+                        )
+                      )
+                    )
+                  )
+                ),
+                h('div', { className: 'bg-white p-6 rounded-lg shadow' },
+                  h('h3', { className: 'text-xl font-semibold mb-4' }, 'Owner Workload'),
+                  Object.keys(reportData.ownerWorkload).length > 0 ? 
+                    h('div', { className: 'space-y-3' },
+                      Object.entries(reportData.ownerWorkload).sort((a, b) => b[1] - a[1]).map(([owner, count]) =>
+                        h('div', { key: owner },
+                          h('div', { className: 'flex justify-between mb-1' },
+                            h('span', {}, owner),
+                            h('span', { className: 'font-semibold' }, `${count} items`)
+                          ),
+                          h('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
+                            h('div', {
+                              className: 'bg-fresh-500 h-2 rounded-full',
+                              style: { width: `${(count / reportData.totalItems * 100)}%` }
+                            })
+                          )
+                        )
+                      )
+                    ) : h('p', { className: 'text-gray-500 text-center py-4' }, 'No owners assigned yet')
+                )
+              )
+            ) : h('div', { className: 'flex-1 flex overflow-hidden' },
+              h('div', { className: `${showDetailPanel && selectedItem ? 'w-1/3' : 'w-full'} bg-white border-r flex flex-col` },
+                h('div', { className: 'p-4 border-b space-y-3' },
+                  h(MyReviewsPanel),
+                  h(MyTestsPanel),
+                  h('div', { className: 'flex gap-2' },
+                    h('button', {
+                      onClick: () => setShowNewItemForm(true),
+                      className: 'flex-1 bg-fresh-600 text-white px-2 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-1 text-sm'
+                    }, h(Plus, { size: 14 }), ' New Item'),
+                    h('button', {
+                      onClick: () => setShowRelationshipForm(true),
+                      className: 'flex-1 bg-fresh-600 text-white px-2 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-1 text-sm'
+                    }, h(Link2, { size: 14 }), ' Link Items'),
+                    h('button', {
+                      onClick: () => setShowImportModal(true),
+                      className: 'flex-1 bg-fresh-600 text-white px-2 py-2 rounded hover:bg-fresh-700 flex items-center justify-center gap-1 text-sm',
+                      title: 'Import requirements from CSV'
+                    }, 'Import')
+                  ),
+                  h('div', { className: 'flex gap-2' },
+                    h('div', { className: 'flex-1 relative' },
+                      h(Search, { size: 16, className: 'absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400' }),
+                      h('input', {
+                        type: 'text',
+                        placeholder: 'Search...',
+                        value: searchTerm,
+                        onChange: (e) => setSearchTerm(e.target.value),
+                        className: 'w-full border rounded pl-10 pr-3 py-2'
+                      })
+                    ),
+                    h('select', {
+                      value: filterType,
+                      onChange: (e) => {
+                        setFilterType(e.target.value);
+                        // Reset status filter when type changes
+                        setFilterStatus('all');
+                      },
+                      className: 'border rounded px-3 py-2'
+                    },
+                      h('option', { value: 'all' }, 'All Types'),
+                      ...itemTypes.map(type => h('option', { key: type, value: type }, type))
+                    ),
+                    h('select', {
+                      value: filterStatus,
+                      onChange: (e) => setFilterStatus(e.target.value),
+                      className: 'border rounded px-3 py-2'
+                    },
+                      h('option', { value: 'all' }, 'All Statuses'),
+                      // Show relevant statuses based on selected type
+                      ...(filterType === 'all' 
+                        ? // If showing all types, show all possible statuses
+                          [...new Set(Object.values(statuses).flat())].map(status => 
+                            h('option', { key: status, value: status }, status)
+                          )
+                        : // If a specific type is selected, show only its statuses
+                          (statuses[filterType] || []).map(status => 
+                            h('option', { key: status, value: status }, status)
+                          )
+                      )
+                    )
+                  ),
+                  h('div', { className: 'flex gap-2' },
+                    h('button', {
+                      onClick: collapseAll,
+                      className: 'flex-1 bg-gray-600 text-white px-3 py-2 rounded hover:bg-gray-700 text-sm'
+                    }, 'Collapse All'),
+                    h('select', {
+                      onChange: (e) => {
+                        if (e.target.value) {
+                          expandToLevel(e.target.value);
+                          e.target.value = ''; // Reset dropdown
+                        }
+                      },
+                      defaultValue: '',
+                      className: 'flex-1 border rounded px-3 py-2 text-sm bg-white'
+                    },
+                      h('option', { value: '', disabled: true }, 'Expand to...'),
+                      ...requirementLevels.map(level => 
+                        h('option', { key: level, value: level }, 
+                          level.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('-')
+                        )
+                      )
+                    )
+                  )
+                ),
+                h('div', { className: 'flex-1 overflow-y-auto' },
+                  rootItems.length > 0 ?
+                    rootItems.map(item => renderTreeItem(item)) :
+                    h('div', { className: 'p-4 text-center text-gray-500' }, 'No items yet. Click "New Item" to create one.')
+                )
+              ),
+              selectedItem && showDetailPanel && h('div', { className: 'flex-1 bg-white overflow-y-auto' },
+                h('div', { className: 'p-6' },
+                  h('div', { className: 'flex justify-between items-start mb-6' },
+                    h('div', { className: 'flex-1' },
+                      h('div', { className: 'flex items-center gap-3 mb-2' },
+                        h('span', {
+                          className: `px-3 py-1 text-sm rounded ${
+                            selectedItem.type === 'epic' ? 'bg-purple-100 text-purple-800' :
+                            selectedItem.type === 'requirement' ? 'bg-blue-100 text-blue-800' :
+                            selectedItem.type === 'test-case' ? 'bg-green-100 text-green-800' :
+                            'bg-red-100 text-red-800'
+                          }`
+                        }, selectedItem.type),
+                        h('span', { className: 'text-gray-500 text-sm' }, `ID: ${selectedItem.id} | Version: ${selectedItem.version}`)
+                      ),
+                      h('h2', { className: 'text-2xl font-bold' }, selectedItem.title)
+                    ),
+                    h('div', { className: 'flex gap-2' },
+                      h('button', {
+                        onClick: () => { setShowDetailPanel(false); setSelectedItem(null); },
+                        className: 'p-2 text-gray-400 hover:bg-gray-50 rounded',
+                        title: 'Close'
+                      }, h(X, { size: 20 })),
+                      selectedItem.type === 'requirement' && selectedItem.reviewer_email && (selectedItem.status === 'draft' || selectedItem.status === 'rejected') && h('button', {
+                        onClick: async () => {
+                          await handleUpdateItem(selectedItem.id, { status: 'in-review' });
+                          await refreshSelectedItem();
+                        },
+                        className: 'px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium',
+                        title: 'Send to reviewer'
+                      }, '📤 Send for Review'),
+                      selectedItem.type === 'test-case' && selectedItem.tester_email && selectedItem.status === 'draft' && h('button', {
+                        onClick: async () => {
+                          await handleUpdateItem(selectedItem.id, { status: 'ready-for-test' });
+                          await refreshSelectedItem();
+                        },
+                        className: 'px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium',
+                        title: 'Mark as ready for testing'
+                      }, '🧪 Ready for Test'),
+                      selectedItem.type === 'test-case' && selectedItem.status === 'failed' && h('button', {
+                        onClick: async () => {
+                          await handleUpdateItem(selectedItem.id, { status: 'ready-for-test' });
+                          await refreshSelectedItem();
+                        },
+                        className: 'px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium',
+                        title: 'Bug fixed - ready to re-test'
+                      }, '🔄 Ready for Re-test'),
+                      h('button', {
+                        onClick: () => setEditingItem(selectedItem),
+                        className: 'p-2 text-blue-600 hover:bg-blue-50 rounded'
+                      }, h(Edit2, { size: 20 })),
+                      h('button', {
+                        onClick: () => handleDeleteItem(selectedItem.id),
+                        className: 'p-2 text-red-600 hover:bg-red-50 rounded'
+                      }, h(Trash2, { size: 20 }))
+                    )
+                  ),
+                  h('div', { className: 'grid grid-cols-2 gap-4 mb-6' },
+                    // Hide status for epics since they're organizational containers
+                    selectedItem.type !== 'epic' && h('div', {},
+                      h('span', { className: 'text-sm text-gray-500' }, 'Status'),
+                      h('div', {
+                        className: `mt-1 px-3 py-1 rounded inline-block ${
+                          selectedItem.status === 'approved' ? 'bg-green-100 text-green-800' :
+                          selectedItem.status === 'in-review' ? 'bg-yellow-100 text-yellow-800' :
+                          selectedItem.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`
+                      }, selectedItem.status)
+                    ),
+                    h('div', {},
+                      h('span', { className: 'text-sm text-gray-500' }, 'Priority'),
+                      h('div', {
+                        className: `mt-1 px-3 py-1 rounded inline-block ${
+                          selectedItem.priority === 'critical' ? 'bg-red-100 text-red-800' :
+                          selectedItem.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                          selectedItem.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`
+                      }, selectedItem.priority)
+                    ),
+                    h('div', {},
+                      h('span', { className: 'text-sm text-gray-500' }, 'Owner'),
+                      h('p', { className: 'mt-1 font-medium' }, selectedItem.owner || 'Unassigned')
+                    )
+                  ),
+                  h('div', { className: 'mb-6' },
+                    h('h3', { className: 'font-semibold mb-2' }, 'Description'),
+                    h('p', { className: 'text-gray-700' }, selectedItem.description)
+                  ),
+
+                  selectedItem.type === 'requirement' && selectedItem.reviewer_email && h('div', { className: 'mb-6' },
+                    h('h3', { className: 'text-sm font-semibold text-gray-500 mb-1' }, 'Assigned Reviewer'),
+                    h('p', { className: 'text-gray-700' }, selectedItem.reviewer_email)
+                  ),
+
+                  selectedItem.type === 'test-case' && selectedItem.tester_email && h('div', { className: 'mb-6' },
+                    h('h3', { className: 'text-sm font-semibold text-gray-500 mb-1' }, 'Assigned Tester'),
+                    h('p', { className: 'text-gray-700' }, selectedItem.tester_email)
+                  ),
+
+                  selectedItem.type === 'requirement' && selectedItem.reviewer_email && selectedItem.status === 'in-review' && h('div', { className: 'mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded' },
+                    h('div', { className: 'flex justify-between items-start' },
+                      h('div', {},
+                        h('h3', { className: 'font-semibold text-blue-900 mb-1' }, '👤 Review Assignment'),
+                        h('p', { className: 'text-sm text-blue-800' }, `Assigned to: ${selectedItem.reviewer_email}`),
+                        h('p', { className: 'text-sm text-blue-700 mt-1' }, 'This item is awaiting review')
+                      ),
+                      user && user.email === selectedItem.reviewer_email &&
+                        h('div', { className: 'flex gap-2' },
+                          h('button', {
+                            onClick: () => {
+                              setApprovalAction('approve');
+                              setShowApprovalModal(true);
+                            },
+                            className: 'bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-medium flex items-center gap-2'
+                          }, h(CheckCircle, { size: 16 }), ' Approve'),
+                          h('button', {
+                            onClick: () => {
+                              setApprovalAction('reject');
+                              setShowApprovalModal(true);
+                            },
+                            className: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-medium flex items-center gap-2'
+                          }, h(XCircle, { size: 16 }), ' Reject')
+                        )
+                    )
+                  ),
+
+                  selectedItem.type === 'test-case' && selectedItem.tester_email && selectedItem.status === 'ready-for-test' && h('div', { className: 'mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded' },
+                    h('div', { className: 'flex justify-between items-start' },
+                      h('div', {},
+                        h('h3', { className: 'font-semibold text-blue-900 mb-1' }, '🧪 Test Execution'),
+                        h('p', { className: 'text-sm text-blue-800' }, `Assigned to: ${selectedItem.tester_email}`),
+                        h('p', { className: 'text-sm text-blue-700 mt-1' }, 'This test is ready for execution')
+                      ),
+                      user && user.email === selectedItem.tester_email &&
+                        h('div', { className: 'flex gap-2' },
+                          h('button', {
+                            onClick: () => {
+                              setApprovalAction('pass');
+                              setShowApprovalModal(true);
+                            },
+                            className: 'bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 font-medium flex items-center gap-2'
+                          }, h(CheckCircle, { size: 16 }), ' Pass'),
+                          h('button', {
+                            onClick: () => {
+                              setApprovalAction('fail');
+                              setShowApprovalModal(true);
+                            },
+                            className: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 font-medium flex items-center gap-2'
+                          }, h(XCircle, { size: 16 }), ' Fail')
+                        )
+                    )
+                  ),
+
+                  selectedItem.status === 'approved' && h('div', { className: 'mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded' },
+                    h('p', { className: 'text-sm text-green-700 font-medium' }, '✓ This item has been approved')
+                  ),
+
+                  selectedItem.status === 'passed' && h('div', { className: 'mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded' },
+                    h('p', { className: 'text-sm text-green-700 font-medium' }, '✓ This test has passed')
+                  ),
+
+                  selectedItem.status === 'failed' && h('div', { className: 'mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded' },
+                    h('div', {},
+                      h('p', { className: 'text-sm text-red-700 font-medium mb-2' }, '✗ This test has failed'),
+                      h('p', { className: 'text-sm text-red-600' }, 'Review the failure notes in the audit history below. Once the bug is fixed, click "Ready for Re-test" to execute this test again.')
+                    )
+                  ),
+
+                  selectedItem.rationale && h('div', { className: 'mb-6' },
+                    h('h3', { className: 'font-semibold mb-2' }, 'Rationale'),
+                    h('p', { className: 'text-gray-700' }, selectedItem.rationale)
+                  ),
+
+                  // IMPROVEMENT #1: Make test_method URLs clickable
+                  selectedItem.test_method && h('div', { className: 'mb-6' },
+                    h('h3', { className: 'font-semibold mb-2' }, 'Test Method'),
+                    // Check if test_method is a URL and make it clickable
+                    (() => {
+                      const isUrl = selectedItem.test_method.match(/^https?:\/\//);
+                      return isUrl 
+                        ? h('a', { 
+                            href: selectedItem.test_method, 
+                            target: '_blank',
+                            rel: 'noopener noreferrer',
+                            className: 'text-blue-600 hover:text-blue-800 underline flex items-center gap-2'
+                          }, 
+                          '🔗 ', selectedItem.test_method,
+                          h('span', { className: 'text-xs text-gray-500' }, '(opens in new tab)')
+                        )
+                        : h('p', { className: 'text-gray-700 whitespace-pre-wrap' }, selectedItem.test_method);
+                    })()
+                  ),
+                  h('div', { className: 'mb-6' },
+                    h('div', { className: 'flex items-center justify-between mb-2' },
+                      h('h3', { className: 'font-semibold flex items-center gap-2' },
+                        h(GitBranch, { size: 18 }), ' Relationships'
+                      ),
+                      h('div', { className: 'flex gap-2' },
+                        h('button', {
+                          onClick: () => setShowGraphView(false),
+                          className: `px-3 py-1 text-sm rounded ${!showGraphView ? 'bg-fresh-600 text-white' : 'bg-gray-200'}`
+                        }, 'List'),
+                        h('button', {
+                          onClick: () => setShowGraphView(true),
+                          className: `px-3 py-1 text-sm rounded ${showGraphView ? 'bg-fresh-600 text-white' : 'bg-gray-200'}`
+                        }, 'Graph')
+                      )
+                    ),
+                    showGraphView ? 
+                      h(RelationshipGraph, { item: selectedItem }) :
+                      // IMPROVEMENT #2: Make relationship items clickable for navigation
+                      h('div', { className: 'space-y-2' },
+                        ...getItemRelationships(selectedItem.id).outgoing.map((rel, idx) => {
+                          const target = items.find(i => i.id === rel.to_id);
+                          return target ? h('div', { key: idx, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded group' },
+                            h('span', { className: 'text-sm text-gray-600' }, rel.type),
+                            h(ChevronRight, { size: 16, className: 'text-gray-400' }),
+                            // Make the target item clickable to navigate to it
+                            h('button', {
+                              onClick: () => {
+                                setSelectedItem(target);
+                                setShowDetailPanel(true);
+                              },
+                              className: 'text-sm font-medium flex-1 text-left hover:text-blue-600 hover:underline'
+                            }, target.title),
+                            h('button', {
+                              onClick: () => handleDeleteRelationship(rel.id),
+                              className: 'opacity-0 group-hover:opacity-100 text-red-600 hover:bg-red-50 p-1 rounded transition-opacity'
+                            }, h(Trash2, { size: 14 }))
+                          ) : null;
+                        }),
+                        ...getItemRelationships(selectedItem.id).incoming.map((rel, idx) => {
+                          const source = items.find(i => i.id === rel.from_id);
+                          return source ? h('div', { key: `in-${idx}`, className: 'flex items-center gap-2 p-2 bg-gray-50 rounded group' },
+                            // Make the source item clickable to navigate to it
+                            h('button', {
+                              onClick: () => {
+                                setSelectedItem(source);
+                                setShowDetailPanel(true);
+                              },
+                              className: 'text-sm font-medium hover:text-blue-600 hover:underline'
+                            }, source.title),
+                            h(ChevronRight, { size: 16, className: 'text-gray-400' }),
+                            h('span', { className: 'text-sm text-gray-600' }, rel.type),
+                            h('span', { className: 'text-sm text-gray-600 flex-1' }, ' this item'),
+                            h('button', {
+                              onClick: () => handleDeleteRelationship(rel.id),
+                              className: 'opacity-0 group-hover:opacity-100 text-red-600 hover:bg-red-50 p-1 rounded transition-opacity'
+                            }, h(Trash2, { size: 14 }))
+                          ) : null;
+                        }),
+                        getItemRelationships(selectedItem.id).outgoing.length === 0 && 
+                        getItemRelationships(selectedItem.id).incoming.length === 0 &&
+                          h('p', { className: 'text-gray-500 text-sm' }, 'No relationships yet')
+                      )
+                  ),
+                  h('div', {},
+                    h('h3', { className: 'font-semibold mb-2 flex items-center gap-2' },
+                      h(MessageSquare, { size: 18 }),
+                      ` Comments (${comments.filter(c => c.item_id === selectedItem.id).length})`
+                    ),
+                    h('div', { className: 'space-y-3 mb-4' },
+                      ...comments.filter(c => c.item_id === selectedItem.id).map(comment =>
+                        h('div', { key: comment.id, className: 'p-3 bg-gray-50 rounded' },
+                          h('div', { className: 'flex justify-between items-start mb-1' },
+                            h('span', { className: 'font-medium text-sm' }, comment.author),
+                            h('span', { className: 'text-xs text-gray-500' }, new Date(comment.timestamp).toLocaleString())
+                          ),
+                          h('p', { className: 'text-sm text-gray-700' }, comment.text)
+                        )
+                      )
+                    ),
+                    h('div', { className: 'flex gap-2' },
+                      h('input', {
+                        type: 'text',
+                        value: newComment,
+                        onChange: (e) => setNewComment(e.target.value),
+                        placeholder: 'Add a comment...',
+                        className: 'flex-1 border rounded px-3 py-2',
+                        onKeyPress: (e) => e.key === 'Enter' && handleAddComment(selectedItem.id)
+                      }),
+                      h('button', {
+                        onClick: () => handleAddComment(selectedItem.id),
+                        className: 'bg-fresh-600 text-white px-4 py-2 rounded hover:bg-fresh-700'
+                      }, 'Post')
+                    )
+                  ),
+
+                  h('div', { className: 'mt-6 pt-6 border-t' },
+                    h('h3', { className: 'font-semibold mb-3 text-gray-700' }, '📋 Audit History'),
+                    h(AuditLogViewer, { itemId: selectedItem.id })
+                  )
+                )
+              ),
+              !selectedItem && h('div', { className: 'flex-1 bg-white flex items-center justify-center' },
+                h('div', { className: 'text-center text-gray-400' },
+                  h(Filter, { size: 48, className: 'mx-auto mb-4' }),
+                  h('p', {}, 'Select an item to view details')
+                )
               )
             ),
-            // Modals
-            showNewRunForm && h(NewTestRunForm, { onClose: () => setShowNewRunForm(false) }),
-            activeTestRun && h(TestRunExecutionModal, { run: activeTestRun, onClose: () => setActiveTestRun(null) }),
+            showNewItemForm && h(ItemForm, {
+              onSave: handleCreateItem,
+              onCancel: () => setShowNewItemForm(false)
+            }),
+            editingItem && h(ItemForm, {
+              item: editingItem,
+              onSave: handleUpdateItem,
+              onCancel: () => setEditingItem(null)
+            }),
+            showRelationshipForm && h(RelationshipForm),
+            showImportModal && h(ImportCSVModal),
             showProjectForm && h(ProjectForm, {
               onSave: handleCreateProject,
               onCancel: () => setShowProjectForm(false)
@@ -1979,10 +2694,20 @@ CREATE POLICY "Enable all operations" ON test_results FOR ALL USING (true);`);
           );
         };
 
+        // Close project dropdown when clicking outside
+        if (typeof document !== 'undefined') {
+          document.addEventListener('click', (e) => {
+            if (!e.target.closest('.project-selector')) {
+              // Will be handled by React state
+            }
+          });
+        }
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(h(RequirementsManager));
         }
         
+        // Start the app
         initApp();
     </script>
 </body>
